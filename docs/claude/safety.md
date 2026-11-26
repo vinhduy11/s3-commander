@@ -5,3 +5,4 @@
 - Testing against real S3 buckets: Delete/Move (F6/F8) are destructive. Use a throwaway bucket or prefix and confirm the target with the user before running anything that writes or deletes remotely.
 - The vault file holds only ciphertext; losing the master key means the profiles are unrecoverable (no reset path by design). Frontend commands never return `secret_key`, and the master key is passed per call and not stored or logged.
 - Vault tests use tempdirs and touch no network or database.
+- AWS CLI import (profile form) reads only the non-secret keys listed in the roadmap from `~/.aws/config`, only when the user clicks Import; it never reads `~/.aws/credentials` or any key/secret/token value, and tests never read the real home directory.
