@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Vault hardening (step 6a)</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:860px;margin:32px auto;padding:0 16px;color:#1b1d24}h2{border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:28px}code{background:#f2f3f6;padding:1px 4px;border-radius:3px}</style></head><body>
+<h1>Vault hardening: auto-lock, unlock throttle, Argon2 upgrade (step 6a)</h1>
+<h2>Specs</h2>
+<ul>
+<li>Auto-lock after idle (1, 5, 15, 30, 60 minutes or Never, default 15) from a Settings popover next to Lock; settings kept in a small file in the app data dir; Rust stays authoritative for the lock; unsaved viewer edits must survive a lock.</li>
+<li>Unlock throttle: exponential delay (1 s doubling to 5 minutes), persisted, reset on success, refusal before any Argon2 work, countdown on the master-key screen.</li>
+<li>Argon2id parameters in the vault header (old vaults unchanged), stronger target for new vaults, verified in-place upgrade on a correct unlock, never touching the old file on failure.</li>
+<li>Fewer master-key copies in Rust; honest documentation of what cannot be zeroized.</li>
+<li>Out of scope: changing the master key, OS keychain / remember on this device (6b), Linux docs and CI.</li>
+</ul>
+<h2>Actions</h2>
+<ul>
+<li>Rust: new <code>settings.rs</code> and <code>unlock_throttle.rs</code>; <code>vault.rs</code> reworked around <code>KdfParams</code>, <code>open_file</code> / <code>seal_file</code>, <code>unlock_with_hook</code> and <code>upgrade</code>; <code>lib.rs</code> commands <code>vault_unlock_wait</code>, <code>settings_get</code>, <code>settings_set</code>, master key wrapped in <code>Zeroizing</code>; <code>argon2</code> with the <code>zeroize</code> feature; dev profile optimises argon2 and blake2.</li>
+<li>Frontend: <code>src/security/</code> (<code>idle_timer</code>, <code>use_auto_lock</code>, <code>settings_store</code>, <code>settings_popover</code>), <code>master_key_screen</code> countdown, <code>keepUnsavedForLock</code> in <code>viewer_store</code>, <code>App.lock</code> wiring, BrowserScreen no longer clears the viewer on unmount, Settings button on the browser and profiles bars, popover styles.</li>
+<li>Tests: 18 new Rust tests (settings 6, throttle 7, vault 10 incl. v1 fixture built with the old parameters) and 26 new Vitest tests (idle timer 8, viewer lock 4, master-key screen 6, popover 8). Docs: README, CHANGELOG, architect, safety, rule.</li>
+</ul>
+<h2>Measured</h2>
+<ul>
+<li><code>cargo test</code> 277 passed, 1 ignored (benchmark); <code>cargo check</code> no warnings; <code>npm test</code> and <code>npm run build</code> pass.</li>
+<li>Argon2id derivation time on one Apple M1 Pro (dev build, argon2 at opt-level 3, 5 runs): old 19 MiB / 2 passes about 15 ms; 64 MiB / 3 about 95 ms; 128 MiB / 3 about 195 ms; 256 MiB / 3 about 0.5 s; 512 MiB / 3 0.8 to 1.0 s; chosen 256 MiB / 4 passes / 1 lane 0.50 to 0.55 s.</li>
+<li>Chromium mock screenshots (in-page mock of the Tauri commands, fake data), light and dark: the Settings popover and the master-key screen during a wait. A first screenshot showed "Never" wrapping to a second row; the popover was widened and the check repeated.</li>
+</ul>
+<h2>Inferred, not exercised</h2>
+<ul>
+<li>A real vault of the owner, the real Tauri window and real idle behaviour, a slow machine (the time scales with memory bandwidth; a weak machine may take several seconds), a release build, Linux.</li>
+<li>That the webview delivers pointer, key, wheel and focus events to the window listeners in every case (tested in jsdom only).</li>
+<li>Memory behaviour of 256 MiB on a low-memory device (not measured).</li>
+</ul>
+<h2>Tradeoffs</h2>
+<ul>
+<li>Version 2 file with a <code>kdf</code> header (serde default = old parameters) instead of leaving the version at 1: an older build then refuses the file instead of failing with a confusing key error; the cost is that downgrading the app after an upgrade is not possible.</li>
+<li>256 MiB / 4 passes / 1 lane, not 512 MiB: about 0.5 s here without asking a small machine for half a gigabyte; the extra pass raises the time at constant memory. It is at the lower end of the 0.5 to 1 s aim on a fast machine, so slower machines land closer to 1 s or above.</li>
+<li>Upgrade verifies by deriving again and decrypting the temp file (three derivations once) instead of only checking the bytes: it exercises the real unlock path at the price of about 1.5 s on the first unlock.</li>
+<li>The throttle lives in a plain file and a restart keeps it, but deleting the file resets it: it protects the UI path only; a copied vault is protected by the Argon2 cost.</li>
+<li>Idle timer records timestamps and uses one timeout instead of resetting a timer on every event: pointer moves cost an assignment.</li>
+<li>Only unsaved viewer sessions survive a lock, and only in webview memory; clean sessions are dropped so file text does not wait behind the lock screen. Other open dialogs are closed on lock. A manual Lock behaves the same as the auto-lock.</li>
+<li>Process: tests and implementation were written together for settings and throttle; the red output was produced afterwards by neutering the validation and the delay. The Argon2 and frontend tests were written first.</li>
+</ul>
+</body></html>

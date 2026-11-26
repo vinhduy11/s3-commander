@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ServerIcon } from "../icons";
+import { SettingsPopover } from "../security/settings_popover";
 import { duplicateProfile, testProfile, type Profile } from "../browse/browse_api";
 import type { FieldErrors } from "../profile/validate_profile";
 import { ProfileForm, type ProfileFormValues } from "./profile_form";
@@ -99,6 +100,7 @@ export function ProfilesScreen({ onBack, onLock }: { onBack: () => void; onLock:
         <div className="page-head">
           <h1>Profiles</h1>
           <button onClick={onBack}>Back</button>
+          <SettingsPopover />
           <button onClick={onLock}>Lock</button>
           <button className="primary" onClick={() => openForm(EMPTY_FORM)}>Add profile</button>
         </div>

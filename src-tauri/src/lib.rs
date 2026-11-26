@@ -9,6 +9,7 @@ pub mod local_ops;
 pub mod presign;
 pub mod s3;
 pub mod s3_ops;
+pub mod settings;
 pub mod text_doc;
 pub mod text_file;
 pub mod text_s3;
@@ -17,6 +18,7 @@ pub mod transfer_job;
 pub mod transfer_plan;
 pub mod transfer_queue;
 pub mod transfer_settings;
+pub mod unlock_throttle;
 pub mod transfer_run;
 pub mod vault;
 
@@ -29,9 +31,18 @@ use transfer_job::{JobSnapshot, ProgressEvent};
 use transfer_plan::{Location, PlanSummary, Resolutions, TopItem, TransferRequest};
 use transfer_queue::{EventSink, JobSpec, TransferQueue};
 use transfer_run::{DeleteReport, RunReport};
+use unlock_throttle::{unlock_guarded, SystemClock, UnlockThrottle};
 use vault::{ProfileInput, ProfileSummary, Vault};
+use zeroize::Zeroizing;
 
 const VAULT_FILE_NAME: &str = "vault.json";
+const SETTINGS_FILE_NAME: &str = "settings.json";
+const THROTTLE_FILE_NAME: &str = "unlock_throttle.json";
+
+type ThrottleState<'a> = State<'a, Mutex<UnlockThrottle>>;
+
+/// Where `settings.json` lives (managed state).
+struct SettingsPath(std::path::PathBuf);
 
 type VaultState<'a> = State<'a, Mutex<Vault>>;
 type ClientState<'a> = State<'a, ClientCache>;
@@ -113,12 +124,33 @@ fn vault_status(state: VaultState) -> Result<VaultStatus, String> {
 
 #[tauri::command]
 fn vault_create(state: VaultState, master: String) -> Result<(), String> {
+    let master = Zeroizing::new(master); // wiped when this call ends
     with_vault(&state, |vault| vault.create(&master))
 }
 
+/// Unlock behind the failed-attempt throttle: while the delay runs it refuses without deriving a key.
 #[tauri::command]
-fn vault_unlock(state: VaultState, master: String) -> Result<(), String> {
-    with_vault(&state, |vault| vault.unlock(&master))
+fn vault_unlock(state: VaultState, throttle: ThrottleState, master: String) -> Result<(), String> {
+    let master = Zeroizing::new(master);
+    let mut throttle = throttle.lock().unwrap_or_else(PoisonError::into_inner);
+    with_vault(&state, |vault| unlock_guarded(vault, &mut throttle, &SystemClock, &master))
+}
+
+/// Milliseconds the unlock screen still has to wait (0 = may try now).
+#[tauri::command]
+fn vault_unlock_wait(throttle: ThrottleState) -> u64 {
+    throttle.lock().unwrap_or_else(PoisonError::into_inner).remaining_ms(&SystemClock)
+}
+
+#[tauri::command]
+fn settings_get(path: State<SettingsPath>) -> settings::AppSettings {
+    settings::load(&path.0)
+}
+
+#[tauri::command]
+fn settings_set(path: State<SettingsPath>, settings: settings::AppSettings) -> Result<settings::AppSettings, String> {
+    settings::save(&path.0, &settings)?;
+    Ok(settings)
 }
 
 /// Lock stops every transfer first (cancels, aborts the kept uploads), then drops the client.
@@ -361,7 +393,10 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            let vault_path = app.path().app_data_dir()?.join(VAULT_FILE_NAME);
+            let data_dir = app.path().app_data_dir()?;
+            let vault_path = data_dir.join(VAULT_FILE_NAME);
+            app.manage(SettingsPath(data_dir.join(SETTINGS_FILE_NAME)));
+            app.manage(Mutex::new(UnlockThrottle::load(data_dir.join(THROTTLE_FILE_NAME))));
             app.manage(Mutex::new(Vault::new(vault_path)));
             app.manage(ClientCache::default());
             app.manage(TransferQueue::with_engine(Arc::new(TauriEvents(app.handle().clone()))));
@@ -372,6 +407,9 @@ pub fn run() {
             vault_create,
             vault_unlock,
             vault_lock,
+            vault_unlock_wait,
+            settings_get,
+            settings_set,
             profile_list,
             profile_save,
             profile_delete,

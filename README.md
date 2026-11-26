@@ -2,7 +2,7 @@
 
 Tauri desktop app to manage files and directories on a MinIO server (S3-compatible API) with a Total Commander-style dual-pane UI. Multiple profiles, secrets encrypted in an app vault, unlocked with a master key. See `CLAUDE.md` and `docs/claude/` for the design.
 
-Status: multi-profile vault, browsing (dual-pane Local / bucket panels, profile switcher, profile test and duplicate) and basic file operations: F5 Copy, F6 Move, F7 New folder, F8 Delete, F2 Rename between Local and server panels, with a per-item conflict dialog (step 3a). Drag and drop and the context menu (3b, 3c) are in. Uploads and downloads of any size (up to the 5 TiB object limit) go through the multipart / ranged transfer engine (step 4a, Rust only): parts in parallel with retry, resume of a partly uploaded multipart, ranged downloads through a `.part` file. Copy, Move and drops run as background jobs in a transfer queue above the function keys (step 4b): progress, speed and ETA, Cancel, and Retry that resumes a kept multipart upload (an app crash or quit leaves such an upload on the server, see `docs/claude/architect.md`). View/edit (step 5) is a later step (`docs/implement/s3-commander-roadmap.md`).
+Status: multi-profile vault, browsing (dual-pane Local / bucket panels, profile switcher, profile test and duplicate) and basic file operations: F5 Copy, F6 Move, F7 New folder, F8 Delete, F2 Rename between Local and server panels, with a per-item conflict dialog (step 3a). Drag and drop and the context menu (3b, 3c) are in. Uploads and downloads of any size (up to the 5 TiB object limit) go through the multipart / ranged transfer engine (step 4a, Rust only): parts in parallel with retry, resume of a partly uploaded multipart, ranged downloads through a `.part` file. Copy, Move and drops run as background jobs in a transfer queue above the function keys (step 4b): progress, speed and ETA, Cancel, and Retry that resumes a kept multipart upload (an app crash or quit leaves such an upload on the server, see `docs/claude/architect.md`). View/edit (step 5) is in. Vault hardening (step 6a): auto-lock after idle (Settings popover), a persisted delay after failed unlocks, and stronger Argon2 parameters for new vaults with an in-place upgrade of old ones. Not yet: "remember on this device" and the Linux build (step 6b) (`docs/implement/s3-commander-roadmap.md`).
 
 ## Development
 
@@ -33,11 +33,12 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 │   ├── tokens.css        # design tokens (colors, type, spacing, radius) with light and dark themes
 │   ├── styles.css        # all component styles, built on tokens.css (imported by App.tsx)
 │   ├── icons.tsx         # inline SVG icons: folder, parent, file types, lock, key, server, disk
+│   ├── security/                  # auto-lock (step 6a): idle_timer (pure), use_auto_lock, settings_store, settings_popover
 │   ├── screens/
-│   │   ├── master_key_screen.tsx  # create / unlock the vault
+│   │   ├── master_key_screen.tsx  # create / unlock the vault; shows the unlock wait after failed attempts and disables Unlock
 │   │   ├── profiles_screen.tsx    # add, edit, delete, test, duplicate profiles; shows Rust's per-field save errors
 │   │   ├── profile_form.tsx       # profile form: inline per-field errors, Save disabled while invalid, http warning, collapsible Transfer settings, Import from AWS CLI
-│   │   └── browser_screen.tsx     # top bar (profile switcher, Lock), two panels, F-key bar (F2 to F9), operation dialogs and the viewer
+│   │   └── browser_screen.tsx     # top bar (profile switcher, Settings, Lock), two panels, F-key bar (F2 to F9), operation dialogs and the viewer
 │   ├── profile/
 │   │   ├── validate_profile.ts    # profile rules (mirror of profile_rules.rs) for instant feedback
 │   │   ├── aws_import_api.ts      # typed wrappers over aws_config_list_profiles / aws_config_read_profile
@@ -102,6 +103,8 @@ npm test               # vitest: panel store, navigation helpers, operation targ
     ├── icons/            # app icons
     └── src/
         ├── main.rs       # binary entry
+        ├── settings.rs   # app settings file (settings.json: auto-lock minutes): defaults, validation, atomic save; no Tauri dependency
+        ├── unlock_throttle.rs # failed-unlock counter with exponential delay (1 s .. 5 min), persisted, injectable clock; unlock_guarded; no Tauri dependency
         ├── lib.rs        # Tauri builder, vault + client-cache state, thin commands (incl. transfer_preview, transfer_start / transfer_cancel / transfer_retry / transfer_dismiss / transfer_list, items_delete, folder_create, item_rename, presign_preview, presign_urls, write_text_file)
         ├── app_error.rs  # AppError: the one error type the UI sees (serialized as a message); ProfileSaveError with per-field errors
         ├── profile_rules.rs # the one place that validates and normalizes a profile input (per-field errors); no Tauri dependency
@@ -124,5 +127,5 @@ npm test               # vitest: panel store, navigation helpers, operation targ
         ├── presign.rs    # presigned GET URLs (local SigV4 computation): expiry bounds, content-disposition, folder expansion, batch; no Tauri dependency
         ├── text_file.rs  # write_text_file for the URL list chosen in the save dialog; no Tauri dependency
         ├── local_ops.rs  # local walk, copy tree, rename, New folder, Trash behind the TrashBin trait
-        └── vault.rs      # encrypted profile vault (Argon2id + XChaCha20-Poly1305), no Tauri dependency
+        └── vault.rs      # encrypted profile vault (Argon2id + XChaCha20-Poly1305), Argon2 parameters in the file header, in-place upgrade on unlock; no Tauri dependency
 ```

@@ -12,6 +12,7 @@ const sheet = <path d="M4 1.7h5.3L12.5 5v9.3H4z M9.3 1.7V5h3.2" />;
 export const FolderIcon = () => <Svg><path d="M1.7 4.2a1 1 0 0 1 1-1h3.1l1.4 1.6h6.1a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H2.7a1 1 0 0 1-1-1z" fill="currentColor" fillOpacity=".18" /></Svg>;
 export const UpIcon = () => <Svg><path d="M8 13V3.5M3.8 7.4 8 3.2l4.2 4.2" /></Svg>;
 export const LockIcon = () => <Svg><rect x="3" y="7" width="10" height="7" rx="1.5" /><path d="M5.3 7V5a2.7 2.7 0 0 1 5.4 0v2" /></Svg>;
+export const GearIcon = () => <Svg><circle cx="8" cy="8" r="2.2" /><path d="M8 1.8v1.7M8 12.5v1.7M1.8 8h1.7M12.5 8h1.7M3.6 3.6l1.2 1.2M11.2 11.2l1.2 1.2M12.4 3.6l-1.2 1.2M4.8 11.2l-1.2 1.2" /></Svg>;
 export const KeyIcon = ({ size = 28 }: { size?: number }) => <Svg size={size}><circle cx="5.5" cy="10.5" r="2.8" /><path d="M7.6 8.6 13.5 2.7M11 5.2l1.8 1.8" /></Svg>;
 export const ChevronIcon = ({ open }: { open: boolean }) => <Svg><path d={open ? "M3.5 6 8 10.5 12.5 6" : "M6 3.5 10.5 8 6 12.5"} /></Svg>;
 export const ServerIcon = () => <Svg><rect x="2" y="2.5" width="12" height="4.5" rx="1" /><rect x="2" y="9" width="12" height="4.5" rx="1" /><path d="M4.6 4.8h.01M4.6 11.3h.01" /></Svg>;

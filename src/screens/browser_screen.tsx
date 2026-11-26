@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SettingsPopover } from "../security/settings_popover";
 import { LockIcon, ServerIcon } from "../icons";
 import { ContextMenu } from "../browse/context_menu_view";
 import { DragLayer } from "../browse/drag_drop_view";
@@ -84,9 +85,6 @@ export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: 
     return () => void unlisten.then((stop) => stop());
   }, []);
 
-  // Leaving this screen (Lock) drops any open file text.
-  useEffect(() => () => useViewerStore.setState({ session: null }), []);
-
   // Function keys act on the active panel; open dialogs handle their own keys.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -117,6 +115,7 @@ export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: 
           ))}
         </select>
         <button type="button" onClick={onManageProfiles}>Profiles</button>
+        <SettingsPopover />
         <button type="button" onClick={onLock}><LockIcon />Lock</button>
       </div>
       <div className="panels" style={splitColumns(splitRatio)}>
