@@ -10,4 +10,6 @@ No project-specific conventions yet. The global rules in `~/.claude/rule.md` app
 - Icons are inline SVG components in `src/icons.tsx` (stroke, `currentColor`, tinted by token). No icon font, no image CDN.
 - Offline rule: the desktop app makes no runtime network request for UI assets. System font stack (`system-ui`, `ui-monospace` for lists) only; if a font is ever wanted, bundle the file under `src/` and reference it locally, never Google Fonts or a CDN.
 - WebKit (macOS and Linux webviews) is the target: avoid CSS that WebKit lacks; progressive features only (e.g. `::-webkit-scrollbar` is used for a fixed-width list scrollbar so the column header stays aligned).
+- Modal dialogs (file operations): one open at a time (`ops_store`), a scrim (`--scrim`) and a card with `--shadow-modal`, role="dialog", focus moves into the dialog and back to the active panel on close, Tab stays inside. Esc cancels, Enter confirms (a focused button keeps its own Enter), the primary action is the `data-autofocus` element. A destructive permanent action is labelled as such ("Delete permanently") and the dialog says what happens (Trash for local, permanent on the server). A running operation shows a busy dialog without Cancel (cancel arrives with step 4).
+- Function keys act only when no dialog is open.
 - Visual changes must not touch store logic, commands or keyboard handling.

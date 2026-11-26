@@ -63,7 +63,7 @@ fn epoch_seconds(time: std::time::SystemTime) -> Option<i64> {
     }
 }
 
-fn describe_io_error(err: &std::io::Error, path: &Path) -> AppError {
+pub(crate) fn describe_io_error(err: &std::io::Error, path: &Path) -> AppError {
     let shown = path.display();
     AppError::Local(match err.kind() {
         std::io::ErrorKind::PermissionDenied => format!("permission denied: {shown}"),

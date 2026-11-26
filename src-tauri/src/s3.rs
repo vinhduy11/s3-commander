@@ -179,7 +179,7 @@ fn trim_root_cause(text: &str) -> String {
     }
 }
 
-fn map_sdk_error<E, R>(err: SdkError<E, R>) -> AppError
+pub(crate) fn map_sdk_error<E, R>(err: SdkError<E, R>) -> AppError
 where
     E: ProvideErrorMetadata + std::error::Error + 'static,
     R: std::fmt::Debug,

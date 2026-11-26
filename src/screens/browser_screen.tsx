@@ -4,8 +4,20 @@ import { FilePanel } from "../browse/file_panel";
 import { listBuckets, listProfiles, type Profile } from "../browse/browse_api";
 import { useBrowseStore } from "../browse/browse_store";
 import { openSource } from "../browse/panel_loader";
+import { OpsDialogs } from "../ops/ops_dialogs";
+import { startDelete, startNewFolder, startRename, startTransfer } from "../ops/ops_flow";
+import { useOpsStore } from "../ops/ops_store";
 
-const FUNCTION_KEYS = ["F3 View", "F4 Edit", "F5 Copy", "F6 Move", "F7 New folder", "F8 Delete"];
+// F3 View and F4 Edit stay disabled until step 5.
+const FUNCTION_KEYS: { key: string; label: string; action?: () => void }[] = [
+  { key: "F2", label: "Rename", action: () => startRename() },
+  { key: "F3", label: "View" },
+  { key: "F4", label: "Edit" },
+  { key: "F5", label: "Copy", action: () => void startTransfer("copy") },
+  { key: "F6", label: "Move", action: () => void startTransfer("move") },
+  { key: "F7", label: "New folder", action: () => startNewFolder() },
+  { key: "F8", label: "Delete", action: () => startDelete() },
+];
 
 export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: () => void; onLock: () => void }) {
   const profileId = useBrowseStore((state) => state.profileId);
@@ -51,6 +63,19 @@ export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: 
     };
   }, [profileId]);
 
+  // Function keys act on the active panel; open dialogs handle their own keys.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (useOpsStore.getState().dialog) return;
+      const entry = FUNCTION_KEYS.find((candidate) => candidate.action && candidate.key === event.key);
+      if (!entry?.action) return;
+      event.preventDefault();
+      entry.action();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   return (
     <div className="browser">
       <div className="bar">
@@ -75,16 +100,20 @@ export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: 
         <FilePanel side="right" />
       </div>
       <div className="fkeys">
-        {FUNCTION_KEYS.map((label) => {
-          const [key, ...rest] = label.split(" ");
-          return (
-            <button key={label} type="button" disabled title="Not available yet">
-              <span className="fk">{key}</span>{rest.join(" ")}
-            </button>
-          );
-        })}
+        {FUNCTION_KEYS.map(({ key, label, action }) => (
+          <button
+            key={key}
+            type="button"
+            disabled={!action}
+            title={action ? undefined : "Not available yet"}
+            onClick={() => !useOpsStore.getState().dialog && action?.()}
+          >
+            <span className="fk">{key}</span>{label}
+          </button>
+        ))}
       </div>
-      <div className="muted hint">Keys: Tab switches panel, Up/Down/PageUp/PageDown/Home/End move, Enter opens, Backspace goes up, Space marks.</div>
+      <div className="muted hint">Keys: Tab switches panel, Up/Down/PageUp/PageDown/Home/End move, Enter opens, Backspace goes up, Space marks, F2 renames, F5 copies, F6 moves, F7 creates a folder, F8 deletes.</div>
+      <OpsDialogs />
     </div>
   );
 }

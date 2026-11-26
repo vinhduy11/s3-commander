@@ -1,7 +1,11 @@
 pub mod app_error;
 pub mod local;
 pub mod profile_rules;
+pub mod local_ops;
 pub mod s3;
+pub mod s3_ops;
+pub mod transfer_plan;
+pub mod transfer_run;
 pub mod vault;
 
 use std::sync::{Mutex, MutexGuard, PoisonError};
@@ -9,6 +13,8 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use app_error::{AppError, ProfileSaveError};
 use aws_sdk_s3::Client;
 use tauri::{Manager, State};
+use transfer_plan::{Location, PlanSummary, Resolutions, TopItem, TransferRequest};
+use transfer_run::{DeleteReport, RunReport};
 use vault::{ProfileInput, ProfileSummary, Vault};
 
 const VAULT_FILE_NAME: &str = "vault.json";
@@ -152,6 +158,81 @@ async fn local_list_dir(path: String) -> Result<local::LocalListing, AppError> {
     local::list_dir(&local::start_dir(&path))
 }
 
+/// The S3 client when any of the locations is a bucket (needs `profile_id`), otherwise none.
+fn client_for_locations(
+    vault: &VaultState,
+    cache: &ClientCache,
+    profile_id: &Option<String>,
+    locations: &[&Location],
+) -> Result<Option<Client>, AppError> {
+    if !locations.iter().any(|location| matches!(location, Location::Bucket { .. })) {
+        return Ok(None);
+    }
+    let profile_id = profile_id.as_deref().ok_or_else(|| AppError::S3("no active server profile selected".into()))?;
+    client_for(vault, cache, profile_id).map(Some)
+}
+
+/// Dry run of a copy or move: counts, total size and conflicts. Writes nothing.
+#[tauri::command]
+async fn transfer_preview(
+    state: VaultState<'_>,
+    clients: ClientState<'_>,
+    profile_id: Option<String>,
+    request: TransferRequest,
+) -> Result<PlanSummary, AppError> {
+    let client = client_for_locations(&state, &clients, &profile_id, &[&request.source, &request.dest])?;
+    transfer_run::plan_transfer(client.as_ref(), &request).await
+}
+
+#[tauri::command]
+async fn transfer_execute(
+    state: VaultState<'_>,
+    clients: ClientState<'_>,
+    profile_id: Option<String>,
+    request: TransferRequest,
+    resolutions: Resolutions,
+) -> Result<RunReport, AppError> {
+    let client = client_for_locations(&state, &clients, &profile_id, &[&request.source, &request.dest])?;
+    transfer_run::run_transfer(client.as_ref(), &request, &resolutions).await
+}
+
+#[tauri::command]
+async fn items_delete(
+    state: VaultState<'_>,
+    clients: ClientState<'_>,
+    profile_id: Option<String>,
+    location: Location,
+    items: Vec<TopItem>,
+) -> Result<DeleteReport, AppError> {
+    let client = client_for_locations(&state, &clients, &profile_id, &[&location])?;
+    transfer_run::delete_items(client.as_ref(), &local_ops::SystemTrash, &location, &items).await
+}
+
+#[tauri::command]
+async fn folder_create(
+    state: VaultState<'_>,
+    clients: ClientState<'_>,
+    profile_id: Option<String>,
+    location: Location,
+    name: String,
+) -> Result<(), AppError> {
+    let client = client_for_locations(&state, &clients, &profile_id, &[&location])?;
+    transfer_run::new_folder(client.as_ref(), &location, &name).await
+}
+
+#[tauri::command]
+async fn item_rename(
+    state: VaultState<'_>,
+    clients: ClientState<'_>,
+    profile_id: Option<String>,
+    location: Location,
+    item: TopItem,
+    new_name: String,
+) -> Result<RunReport, AppError> {
+    let client = client_for_locations(&state, &clients, &profile_id, &[&location])?;
+    transfer_run::rename_item(client.as_ref(), &location, &item, &new_name).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -174,7 +255,12 @@ pub fn run() {
             profile_test,
             s3_list_buckets,
             s3_list_dir,
-            local_list_dir
+            local_list_dir,
+            transfer_preview,
+            transfer_execute,
+            items_delete,
+            folder_create,
+            item_rename
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

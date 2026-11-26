@@ -37,6 +37,7 @@ export type BrowseState = {
   setListing: (side: Side, listing: Listing, options?: ListingOptions) => void;
   setCursor: (side: Side, cursor: number) => void;
   toggleMark: (side: Side, name: string) => void;
+  clearMarks: (side: Side) => void;
   setScrollTop: (side: Side, scrollTop: number) => void;
   setLoading: (side: Side, loading: boolean) => void;
   setError: (side: Side, error: string) => void;
@@ -116,6 +117,7 @@ export const useBrowseStore = create<BrowseState>((set) => {
         else marked[name] = true;
         return { ...panel, marked };
       }),
+    clearMarks: (side) => patchPanel(side, (panel) => (Object.keys(panel.marked).length ? { ...panel, marked: {} } : panel)),
     setScrollTop: (side, scrollTop) => patchPanel(side, (panel) => ({ ...panel, scrollTop })),
     setLoading: (side, loading) => patchPanel(side, (panel) => ({ ...panel, loading })),
     setError: (side, error) => patchPanel(side, (panel) => ({ ...panel, error, loading: false })),

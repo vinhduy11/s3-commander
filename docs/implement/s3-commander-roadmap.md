@@ -28,7 +28,7 @@ Common client setup (step 2 owns it): one `aws_sdk_s3::Client` per unlocked prof
 - Copy within a profile: `CopyObject`; objects over the single-copy limit use multipart `UploadPartCopy`. Panels never span two profiles, so there is no cross-profile copy.
 - Move = copy, verify, delete source. Folder operations list the prefix first, then act per key; delete uses `DeleteObjects` in batches of 1000.
 - New folder = zero-byte object with a trailing `/` key (the convention MinIO's console uses).
-- Conflict policy (overwrite, skip, rename) asked once per operation.
+- Conflict handling (3a, as built): decided per item with Overwrite, Skip, Keep both and the "all" variants plus Cancel (Total Commander style), from a resolution map plus an optional default; nothing runs before all conflicts are resolved.
 - Tests: key-mapping and batching logic with mocks; direction matrix of the planner (4 directions, file and folder, conflict); drop-target rules (copy, move, into folder, into itself refused); a dry-run plan builder (what would be copied or deleted) unit-tested before any real call.
 
 ## Step 4 — Large upload and download with progress

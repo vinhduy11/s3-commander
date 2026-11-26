@@ -1,0 +1,25 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Basic file operations (step 3a)</title></head><body>
+<h1>Basic file operations and transfers (roadmap step 3a)</h1>
+<h2>Specs</h2>
+<p>Copy, Move, New folder, Delete and Rename between the two panels (Local and server, in any direction), without drag and drop (3b) and without the context menu (3c). One planner for upload, download, server copy and local copy: plan first (count, size, conflicts), then run. Move = copy, verify, delete the source; a failed item keeps its source. Conflicts are decided per item (Overwrite, Skip, Keep both) with Overwrite all, Skip all, Keep both all and Cancel before anything runs. Server delete is permanent after a confirm, local delete goes to the Trash. Upload and download are a single streamed PutObject/GetObject, capped at 5 GiB per file (multipart, progress, cancel, resume are step 4). One active profile, no cross-profile copy.</p>
+<h2>Actions</h2>
+<ul>
+<li>Rust, pure: <code>transfer_plan.rs</code> (locations, key mapping for four directions, destination checks, conflicts, <code>Resolutions</code> map plus default, auto-rename, summary, delete batches).</li>
+<li>Rust adapters: <code>s3_ops.rs</code> (paginated list without delimiter, head, put, get via temp file, CopyObject, multipart UploadPartCopy with abort, DeleteObjects batches of 1000), <code>local_ops.rs</code> (walk, copy tree, rename with copy fallback, New folder, Trash behind the <code>TrashBin</code> trait), <code>transfer_run.rs</code> (engine: expand, probe, resolve, run, verify, batched source delete, delete, new folder, rename).</li>
+<li>Tauri commands <code>transfer_preview</code>, <code>transfer_execute</code>, <code>items_delete</code>, <code>folder_create</code>, <code>item_rename</code> in <code>lib.rs</code>; new dependencies <code>trash</code> and <code>tokio</code> (fs, io-util, rt).</li>
+<li>Frontend <code>src/ops/</code>: api wrappers, pure target selection, dialog store, flows, dialogs; F-key bar enables F2 and F5 to F8; <code>browse_store</code> gained <code>clearMarks</code>; tokens and styles for modal dialogs.</li>
+<li>Tests (TDD, red first): Rust 92 total, all mocked SDK or tempdirs with a fake Trash; Vitest 50 total (28 new) for targets, destination, dialog flow, per-item and "all" resolution, Cancel runs nothing, refresh, Esc/Enter.</li>
+<li>Docs: README, CHANGELOG, architect.md, commands.md, rule.md, roadmap conflict line.</li>
+</ul>
+<h2>Tradeoffs</h2>
+<ul>
+<li>Re-planning at run time instead of keeping a server-side plan: no plan state to expire, at the cost of one more listing; the preview and the run can differ if the source changes in between (the run uses the fresh state).</li>
+<li>Conflicts are per file, folders merge. "Keep both" renames the file, not the folder; keep-both names are probed so an existing "(1)" is skipped.</li>
+<li>Resolution keyed by the destination label (path or bucket/key): simple for the UI and unambiguous inside one operation.</li>
+<li>Verify = destination size equals the planned size (HEAD or file metadata), not a checksum: cheap, catches truncation, not corruption.</li>
+<li>Server sources of a move are deleted in one batch after the loop; a crash between copy and delete leaves duplicates, never loss.</li>
+<li>Empty folders and folder markers are items of their own so structure survives; symlinked folders are refused rather than followed.</li>
+<li>Local delete runs the Trash call inline in the async command (fast, small lists); move it to a blocking task if it ever stalls the UI.</li>
+<li>Not exercised: real MinIO, a real Tauri window, the real Trash, WebKit. Everything is measured through mocks, tempdirs and jsdom.</li>
+</ul>
+</body></html>
