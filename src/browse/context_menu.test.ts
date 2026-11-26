@@ -219,12 +219,31 @@ describe("sort entries in the empty-area menu", () => {
 describe("Copy presigned URL entry", () => {
   const presign = (side: "left" | "right", kind: "row" | "empty" = "row") => byId(side, kind).presign;
 
-  it("is shown for server items only: not on a local panel, not in the empty-space menu", () => {
+  it("is shown for server panels only: never on a local panel, in the row or the empty-space menu", () => {
     openRowMenu("left", 2, 0, 0);
     expect(presign("left")).toBeUndefined();
     expect(presign("left", "empty")).toBeUndefined();
-    setup("bucket", "bucket");
-    expect(presign("left", "empty")).toBeUndefined();
+  });
+
+  it("the empty-space menu of a server panel carries it, disabled until rows are marked", () => {
+    expect(presign("right", "empty")).toMatchObject({ label: "Copy presigned URL", shortcut: "F9", enabled: false });
+    browse().toggleMark("right", "a.txt");
+    expect(presign("right", "empty").enabled).toBe(true);
+  });
+
+  it("from the empty-space menu it presigns the MARKED rows, not the cursor row", () => {
+    browse().toggleMark("right", "a.txt");
+    browse().toggleMark("right", "b.txt");
+    browse().setCursor("right", 1);
+    expect(presign("right", "empty").enabled).toBe(true);
+    presign("right", "empty").run();
+    expect(flow_presign).toHaveBeenCalledWith("right");
+    expect(Object.keys(browse().right.marked).sort()).toEqual(["a.txt", "b.txt"]);
+  });
+
+  it("the cursor row alone does not enable it in the empty-space menu", () => {
+    browse().setCursor("right", 2);
+    expect(presign("right", "empty").enabled).toBe(false);
   });
 
   it("on a server row it is labelled, enabled, and starts the presign flow of that panel", () => {

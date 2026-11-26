@@ -1,0 +1,14 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Presign in the empty-space menu</title></head><body>
+<h1>Copy presigned URL in the empty-space right-click menu</h1>
+<h2>Specs</h2>
+<p>The owner marked several files in a server panel, right-clicked on the empty space of the panel and found no presign entry. Measured in the code: the entry existed only in the row menu (<code>rowItems</code>), by the step 3d design, and an existing test asserted its absence in the empty-space menu.</p>
+<h2>Actions</h2>
+<ul>
+<li>Measured: the old expectation was changed and three tests added in <code>src/browse/context_menu.test.ts</code>; before the fix 3 failed, 33 passed.</li>
+<li><code>emptyPresignItems</code> in <code>src/browse/context_menu.ts</code> adds "Copy presigned URL" (F9) to the empty-space menu of a server panel; it is enabled only when rows are marked (the cursor row alone does not count) and calls the same <code>startPresign</code> flow, which presigns the marked rows.</li>
+<li>Measured: <code>npm test</code> 597 passed, <code>npm run build</code> ok.</li>
+</ul>
+<h2>Tradeoffs</h2>
+<p>Disabled rather than hidden when nothing is marked, so the entry stays discoverable. Local panels still have no entry (there is no object to presign). Other marked-set actions (copy, move, delete) are not added to the empty-space menu; that is a possible follow-up.</p>
+<p>Not exercised: the real Tauri window.</p>
+</body></html>

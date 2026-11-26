@@ -143,5 +143,13 @@ export function buildMenuItems(side: Side, kind: MenuKind): MenuItem[] {
     enabled: panelLocation(browse()[side]) !== null,
     run: () => startNewFolder(side),
   };
-  return kind === "empty" ? [...selectionItems(side), ...sortItems(side), newFolder] : [...rowItems(side), newFolder];
+  return kind === "empty" ? [...selectionItems(side), ...emptyPresignItems(side), ...sortItems(side), newFolder] : [...rowItems(side), newFolder];
+}
+
+/** Server panels only: after marking files, a right-click on empty space can presign the marked rows (never the cursor row alone). */
+function emptyPresignItems(side: Side): MenuItem[] {
+  const panel = browse()[side];
+  if (panel.source?.kind !== "bucket") return [];
+  const hasMarks = Object.keys(panel.marked).length > 0;
+  return [{ id: "presign", label: "Copy presigned URL", shortcut: "F9", enabled: hasMarks && presignSelection(panel) !== null, run: () => startPresign(side) }];
 }

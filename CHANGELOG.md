@@ -9,6 +9,9 @@
 ### Changed
 - The panel footer reads "N selected, <size>" (was "<size> in N marked"). A plain click now clears the marks (it used to only move the cursor); Cmd or Ctrl+click after a plain click keeps that first row selected.
 
+### Fixed
+- "Copy presigned URL" is now also in the right-click menu of the EMPTY space of a server panel (it acts on the marked rows and is disabled until rows are marked), so presigning many marked files no longer requires right-clicking exactly on a marked row. It stays absent on local panels.
+
 ## [1.0.0] - 2026-11-26
 
 First release: macOS DMG (unsigned), dual-pane MinIO file manager.
