@@ -1,4 +1,4 @@
-# Builds the installers for a version tag and creates a DRAFT GitHub Release with the updater
+# Builds the installers for a version tag and publishes a GitHub Release with the updater
 # files (latest.json and the signatures). NOT run on GitHub yet; the Linux jobs are not verified.
 # Steps, secrets and key custody: docs/claude/deployment.md.
 name: Release
@@ -91,7 +91,7 @@ jobs:
           tagName: v__VERSION__
           releaseName: S3 Commander v__VERSION__
           releaseBody: See CHANGELOG.md for the changes in this version.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           uploadUpdaterJson: true
           args: ${{ matrix.args }}

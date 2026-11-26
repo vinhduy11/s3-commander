@@ -1,0 +1,6 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Auto release on tag</title></head><body>
+<h1>Auto release on tag</h1>
+<h2>Specs</h2><p>Pushing a <code>v*</code> tag should publish the GitHub Release (DMGs, updater archives, <code>latest.json</code>) without a manual publish step.</p>
+<h2>Actions</h2><ul><li><code>.github/workflows/release.yml</code>: <code>releaseDraft: false</code>, header comment updated.</li><li>Updated <code>docs/claude/deployment.md</code>, <code>README.md</code>, <code>CHANGELOG.md</code>.</li></ul>
+<h2>Tradeoffs</h2><p>Publishing directly removes the review step, and a failed matrix job leaves a partial public release (delete the release and tag, then retry). Chosen for a hands-off flow; <code>releaseDraft: true</code> restores review.</p>
+</body></html>

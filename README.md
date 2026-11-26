@@ -25,7 +25,7 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 ├── docs/changelog/       # dated implementation reports
 ├── docs/implement/       # implementation plans (roadmap for the S3 steps)
 ├── docs/artifact/        # offline copy of published artifacts (UI demo, app icon options)
-├── .github/workflows/    # ci.yml (tests on push and pull request), release.yml (tag v*: draft release with DMG and updater files)
+├── .github/workflows/    # ci.yml (tests on push and pull request), release.yml (tag v*: published release with DMG and updater files)
 ├── index.html            # Vite entry
 ├── package.json          # frontend deps and npm scripts
 ├── vite.config.ts        # Vite config

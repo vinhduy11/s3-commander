@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- `release.yml` now publishes the GitHub Release on a `v*` tag instead of leaving a draft.
+
 ### Added
 - In-app update check (Tauri updater). A quiet check once per launch a few seconds after unlock (not in dev builds, silent on network or signature errors), a "Check for updates" button and a "Check for updates at launch" toggle (default on) in Settings, and an update dialog with the new and current version, release notes, Download and install with progress, then Restart now or Later. Installing while a transfer runs asks first (wait, install anyway, cancel). The only network contact is the endpoint URL; the update is installed only if its signature matches the public key in the app.
 - GitHub Actions: `ci.yml` (macOS and Linux tests, build, version-match check) and `release.yml` (tag `v*`: DMGs for Apple Silicon and Intel, Linux deb and AppImage (not verified), updater files and `latest.json` in a draft release). Not run on GitHub yet. Release steps and key custody in `docs/claude/deployment.md`.
