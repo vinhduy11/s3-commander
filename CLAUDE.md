@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Status: Tauri 2 + React + TypeScript + Vite scaffold only (no git repo yet). The design below is the owner's intent; update the reference files as code lands. Project layout is in `README.md` (`## Project structure`).
+Status: Tauri 2 + React + TypeScript + Vite scaffold only (no git repo yet). The design below is the owner's intent; update the reference files as code lands. Project layout is in `docs/claude/structure.md`.
 
 ## Project
 
