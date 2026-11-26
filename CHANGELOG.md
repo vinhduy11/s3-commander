@@ -4,6 +4,7 @@
 
 ### Changed
 - README rewritten as a landing page (centered header, features, security, keyboard, build, releases), modeled on the gobi README.
+- README screenshots under `docs/assets/` (taken from the interactive UI demo).
 - `release.yml` now publishes the GitHub Release on a `v*` tag instead of leaving a draft.
 
 ### Added

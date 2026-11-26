@@ -24,6 +24,20 @@
 > right-click the app, choose Open, confirm (or `xattr -dr com.apple.quarantine "/Applications/S3 Commander.app"`).
 > Linux builds exist but are untested. Please [open an issue](https://github.com/vinhduy11/s3-commander/issues) when something breaks.
 
+<p align="center">
+  <img src="docs/assets/dual-pane.png" alt="Dual-pane window: a bucket on the left, a local folder on the right, function-key bar below" width="900">
+</p>
+
+<p align="center">
+  <img src="docs/assets/dual-pane-dark.png" alt="The same window in the dark theme" width="445">
+  &nbsp;
+  <img src="docs/assets/view-file.png" alt="F3 View of an object in a dialog" width="445">
+</p>
+
+<p align="center">
+  <sub>Screenshots of the <a href="docs/artifact/2026-11-26-s3-commander-demo.html">interactive UI demo</a> (sample data, light and dark theme, F3 View).</sub>
+</p>
+
 S3 Commander is a Tauri 2 desktop app (Rust backend, React + TypeScript UI). Put a local folder on one side and a
 bucket on the other, then copy, move and delete with the function keys like in Total Commander. It talks to a custom
 endpoint per profile (MinIO and other S3-compatible servers), not only AWS.
@@ -42,6 +56,7 @@ endpoint per profile (MinIO and other S3-compatible servers), not only AWS.
 - **Presigned URLs**: copy or save a time-limited link for the marked objects (1 second to 7 days).
 - **Go to path**: an editable path field with `~`, `s3://bucket/prefix` and `file://` syntax and recent locations;
   the last folder of each panel is remembered.
+- **Light and dark theme** that follows the OS.
 - **Selection**: range, toggle, invert, rubber band, and Select by pattern (`+` / `-`).
 - **Profiles**: many profiles with a switcher, test connection, duplicate, and import of the non-secret settings
   from `~/.aws/config`.
@@ -112,6 +127,7 @@ The design lives in [`docs/claude/`](docs/claude/): [architecture](docs/claude/a
 ├── docs/changelog/       # dated implementation reports
 ├── docs/implement/       # implementation plans (roadmap for the S3 steps)
 ├── docs/artifact/        # offline copy of published artifacts (UI demo, app icon options)
+├── docs/assets/          # screenshots used by README.md
 ├── .github/workflows/    # ci.yml (tests on push and pull request), release.yml (tag v*: published release with DMG and updater files)
 ├── index.html            # Vite entry
 ├── package.json          # frontend deps and npm scripts
