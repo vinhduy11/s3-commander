@@ -2,7 +2,7 @@
 // and never holds secrets. At most one dialog is open at a time.
 
 import { create } from "zustand";
-import type { ConflictPolicy, ItemFailure, Location, Mode, PlanSummary, TopItem, TransferRequest } from "./ops_api";
+import type { ConflictPolicy, ItemFailure, Location, Mode, PlanSummary, PresignedItem, PresignTarget, TopItem, TransferRequest } from "./ops_api";
 import type { Side } from "../browse/browse_store";
 
 export type NameDialogKind = "new-folder" | "rename";
@@ -20,6 +20,10 @@ export type Dialog =
       index: number;
       perItem: Record<string, ConflictPolicy>;
     }
+  | { kind: "presign-options"; bucket: string; items: PresignTarget[]; hasFolder: boolean }
+  | { kind: "presign-confirm"; bucket: string; items: PresignTarget[]; expiresSecs: number; downloadFilename: string | null; count: number; cap: number; capped: boolean }
+  // Holds live signed URLs: only ever in this open dialog, dropped when it closes (see docs/claude/safety.md).
+  | { kind: "presign-result"; items: PresignedItem[]; total: number; capped: boolean }
   | { kind: "busy"; label: string }
   | { kind: "result"; title: string; lines: string[]; failed: ItemFailure[] };
 

@@ -2,6 +2,7 @@
 // The secret key never leaves Rust; only the profile id is sent.
 
 import { invoke } from "@tauri-apps/api/core";
+import { save } from "@tauri-apps/plugin-dialog";
 
 export type Location = { kind: "local"; path: string } | { kind: "bucket"; bucket: string; prefix: string };
 export type TopItem = { name: string; is_dir: boolean; dest_name?: string | null };
@@ -56,3 +57,21 @@ export const renameItem = (profileId: string | null, location: Location, item: T
 export type DroppedPath = { parent: string; name: string; is_dir: boolean };
 
 export const localStatPaths = (paths: string[]) => invoke<DroppedPath[]>("local_stat_paths", { paths });
+
+/** A selected item for presigning: the full key (a folder prefix ends with "/"). */
+export type PresignTarget = { key: string; is_dir: boolean };
+/** One URL, or an error for that key. The URL is a credential: shown and copied only, never logged or stored. */
+export type PresignedItem = { key: string; name: string; url: string | null; expires_at: number | null; error: string | null };
+export type PresignReport = { items: PresignedItem[]; total: number; capped: boolean };
+export type PresignPreview = { object_count: number; cap: number; capped: boolean };
+
+export const presignPreview = (profileId: string, bucket: string, items: PresignTarget[]) =>
+  invoke<PresignPreview>("presign_preview", { profileId, bucket, items });
+
+export const presignUrls = (profileId: string, bucket: string, items: PresignTarget[], expiresSecs: number, downloadFilename: string | null) =>
+  invoke<PresignReport>("presign_urls", { profileId, bucket, items, expiresSecs, downloadFilename });
+
+/** The native save dialog; null when the user cancels. */
+export const chooseSavePath = (defaultPath: string) => save({ defaultPath });
+
+export const writeTextFile = (path: string, contents: string) => invoke<void>("write_text_file", { path, contents });

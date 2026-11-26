@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useBrowseStore } from "../browse/browse_store";
 import { formatDate, formatSize } from "../browse/navigation";
 import type { ConflictPolicy, Direction, Location, Mode } from "./ops_api";
@@ -10,10 +10,11 @@ import {
   resolveConflict,
   submitName,
 } from "./ops_flow";
+import { Buttons, Modal } from "./modal";
+import { PresignConfirmDialog, PresignOptionsDialog, PresignResultDialog } from "./presign_dialogs";
 import { useOpsStore } from "./ops_store";
 
 const MAX_LISTED_ITEMS = 5;
-const FOCUSABLE = "button:not(:disabled), input, [tabindex]:not([tabindex='-1'])";
 
 /** Verb shown for an operation: the direction names Upload and Download, a move is always Move. */
 export function actionName(direction: Direction, mode: Mode): string {
@@ -23,55 +24,6 @@ export function actionName(direction: Direction, mode: Mode): string {
 
 const locationLabel = (location: Location) => (location.kind === "local" ? location.path : `${location.bucket}/${location.prefix}`);
 
-function Modal({
-  title,
-  children,
-  onCancel,
-  onConfirm,
-}: {
-  title: string;
-  children: ReactNode;
-  onCancel?: () => void;
-  onConfirm?: () => void;
-}) {
-  const boxRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const box = boxRef.current;
-    if (!box) return;
-    (box.querySelector<HTMLElement>("[data-autofocus]") ?? box).focus();
-  }, []);
-
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    event.stopPropagation();
-    if (event.key === "Escape" && onCancel) {
-      event.preventDefault();
-      onCancel();
-    } else if (event.key === "Enter" && onConfirm && !(event.target instanceof HTMLButtonElement)) {
-      event.preventDefault();
-      onConfirm();
-    } else if (event.key === "Tab") {
-      const focusable = Array.from(boxRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []);
-      if (!focusable.length) return;
-      const edge = event.shiftKey ? focusable[0] : focusable[focusable.length - 1];
-      if (document.activeElement === edge) {
-        event.preventDefault();
-        focusable[event.shiftKey ? focusable.length - 1 : 0].focus();
-      }
-    }
-  }
-
-  return (
-    <div className="scrim">
-      <div className="modal" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={boxRef} onKeyDown={onKeyDown}>
-        <h2>{title}</h2>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-const Buttons = ({ children }: { children: ReactNode }) => <div className="modal-actions">{children}</div>;
 
 function NameForm({ title, initial, error, onSubmit }: { title: string; initial: string; error: string; onSubmit: (name: string) => void }) {
   const [text, setText] = useState(initial);
@@ -129,8 +81,22 @@ export function OpsDialogs() {
     wasOpen.current = dialog !== null;
   }, [dialog]);
 
+  // URLs must not outlive the screen (Lock unmounts it): drop a presign dialog on unmount.
+  useEffect(
+    () => () => {
+      if (useOpsStore.getState().dialog?.kind.startsWith("presign")) useOpsStore.getState().setDialog(null);
+    },
+    [],
+  );
+
   if (!dialog) return null;
   switch (dialog.kind) {
+    case "presign-options":
+      return <PresignOptionsDialog dialog={dialog} />;
+    case "presign-confirm":
+      return <PresignConfirmDialog dialog={dialog} />;
+    case "presign-result":
+      return <PresignResultDialog dialog={dialog} />;
     case "delete": {
       const shown = dialog.items.slice(0, MAX_LISTED_ITEMS);
       return (

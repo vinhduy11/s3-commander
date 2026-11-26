@@ -3,8 +3,10 @@ pub mod aws_config;
 pub mod local;
 pub mod profile_rules;
 pub mod local_ops;
+pub mod presign;
 pub mod s3;
 pub mod s3_ops;
+pub mod text_file;
 pub mod transfer_plan;
 pub mod transfer_settings;
 pub mod transfer_run;
@@ -255,10 +257,45 @@ async fn item_rename(
     transfer_run::rename_item(client.as_ref(), &location, &item, &new_name).await
 }
 
+/// How many objects the selection covers (folders expanded), so the UI can confirm a big one.
+#[tauri::command]
+async fn presign_preview(
+    state: VaultState<'_>,
+    clients: ClientState<'_>,
+    profile_id: String,
+    bucket: String,
+    items: Vec<presign::PresignTarget>,
+) -> Result<presign::PresignPreview, AppError> {
+    let client = client_for(&state, &clients, &profile_id)?;
+    presign::preview_selection(&client, &bucket, &items).await
+}
+
+/// Presigned GET URLs for the selection. Computed locally; the result is never logged or stored here.
+#[tauri::command]
+async fn presign_urls(
+    state: VaultState<'_>,
+    clients: ClientState<'_>,
+    profile_id: String,
+    bucket: String,
+    items: Vec<presign::PresignTarget>,
+    expires_secs: u64,
+    download_filename: Option<String>,
+) -> Result<presign::PresignReport, AppError> {
+    let client = client_for(&state, &clients, &profile_id)?;
+    presign::presign_selection(&client, &bucket, &items, expires_secs, download_filename.as_deref(), std::time::SystemTime::now()).await
+}
+
+/// Saves the text to the path chosen in the save dialog (the presigned URL list).
+#[tauri::command]
+async fn write_text_file(path: String, contents: String) -> Result<(), AppError> {
+    text_file::write_text_file(&path, &contents)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let vault_path = app.path().app_data_dir()?.join(VAULT_FILE_NAME);
             app.manage(Mutex::new(Vault::new(vault_path)));
@@ -285,7 +322,10 @@ pub fn run() {
             folder_create,
             item_rename,
             aws_config_list_profiles,
-            aws_config_read_profile
+            aws_config_read_profile,
+            presign_preview,
+            presign_urls,
+            write_text_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

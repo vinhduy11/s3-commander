@@ -1,12 +1,12 @@
 // Right-click context menu: state, the item list and the selection rules. Pure of React so it is
 // testable on its own. Every item's handler calls the same flow the F-key calls (ops_flow), so
-// there is one implementation of each operation. To add an action later (View, Edit, presigned
-// URL) append one entry in `rowItems`; nothing else changes.
+// there is one implementation of each operation. To add an action later (View, Edit) append one entry in `rowItems`; nothing else changes.
 
 import { create } from "zustand";
 import { startDelete, startNewFolder, startRename, startTransfer } from "../ops/ops_flow";
 import { useOpsStore } from "../ops/ops_store";
-import { cursorTarget, panelLocation, selectTargets } from "../ops/ops_targets";
+import { startPresign } from "../ops/presign_flow";
+import { cursorTarget, panelLocation, presignSelection, selectTargets } from "../ops/ops_targets";
 import { useBrowseStore, type Side } from "./browse_store";
 import { buildRows } from "./navigation";
 import { openRowAt } from "./panel_loader";
@@ -88,6 +88,9 @@ function rowItems(side: Side): MenuItem[] {
   items.push(
     { id: "copy", label: `${transferVerb(side)} to other panel`, shortcut: "F5", enabled: canTransfer, run: () => void startTransfer("copy", side) },
     { id: "move", label: "Move to other panel", shortcut: "F6", enabled: canTransfer, run: () => void startTransfer("move", side) },
+    ...(panel.source?.kind === "bucket"
+      ? [{ id: "presign", label: "Copy presigned URL", shortcut: "F9", enabled: presignSelection(panel) !== null, run: () => startPresign(side) }]
+      : []),
     { id: "rename", label: "Rename", shortcut: "F2", enabled: targets.length === 1 && cursorTarget(panel) !== null, run: () => startRename(side) },
     { id: "delete", label: "Delete", shortcut: "F8", enabled: targets.length > 0, run: () => startDelete(side) },
   );

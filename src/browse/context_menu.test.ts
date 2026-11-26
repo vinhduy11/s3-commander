@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { emptyPanel, initialBrowseState, useBrowseStore, type PanelEntry } from "./browse_store";
 import { useOpsStore } from "../ops/ops_store";
 
+vi.mock("../ops/presign_flow", () => ({ startPresign: vi.fn() }));
 vi.mock("../ops/ops_flow", () => ({
   startTransfer: vi.fn(),
   startDelete: vi.fn(),
@@ -11,6 +12,7 @@ vi.mock("../ops/ops_flow", () => ({
 vi.mock("./panel_loader", () => ({ openRowAt: vi.fn() }));
 import * as flow from "../ops/ops_flow";
 import { openRowAt } from "./panel_loader";
+import { startPresign as flow_presign } from "../ops/presign_flow";
 import { buildMenuItems, clampMenuPosition, closeMenu, openEmptyMenu, openMenuAtCursor, openRowMenu, useContextMenu } from "./context_menu";
 
 const file = (name: string): PanelEntry => ({ name, isDir: false, size: 1, modified: 1 });
@@ -210,5 +212,33 @@ describe("sort entries in the empty-area menu", () => {
 
   it("row menus do not carry sort entries", () => {
     expect(ids(buildMenuItems("left", "row")).some((id) => id.startsWith("sort-"))).toBe(false);
+  });
+});
+
+describe("Copy presigned URL entry", () => {
+  const presign = (side: "left" | "right", kind: "row" | "empty" = "row") => byId(side, kind).presign;
+
+  it("is shown for server items only: not on a local panel, not in the empty-space menu", () => {
+    openRowMenu("left", 2, 0, 0);
+    expect(presign("left")).toBeUndefined();
+    expect(presign("left", "empty")).toBeUndefined();
+    setup("bucket", "bucket");
+    expect(presign("left", "empty")).toBeUndefined();
+  });
+
+  it("on a server row it is labelled, enabled, and starts the presign flow of that panel", () => {
+    openRowMenu("right", 2, 0, 0);
+    expect(presign("right")).toMatchObject({ label: "Copy presigned URL", shortcut: "F9", enabled: true });
+    presign("right").run();
+    expect(flow_presign).toHaveBeenCalledWith("right");
+  });
+
+  it("is disabled on the '..' row and enabled for marked items", () => {
+    openRowMenu("right", 0, 0, 0);
+    expect(presign("right").enabled).toBe(false);
+    browse().toggleMark("right", "a.txt");
+    browse().toggleMark("right", "b.txt");
+    openRowMenu("right", 2, 0, 0);
+    expect(presign("right").enabled).toBe(true);
   });
 });

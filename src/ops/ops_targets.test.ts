@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { emptyPanel, initialBrowseState, useBrowseStore, type PanelEntry, type PanelState } from "../browse/browse_store";
-import { cursorTarget, panelLocation, resolveOperation, selectTargets } from "./ops_targets";
+import { cursorTarget, panelLocation, presignSelection, resolveOperation, selectTargets } from "./ops_targets";
 
 const file = (name: string): PanelEntry => ({ name, isDir: false, size: 1, modified: 1 });
 const dir = (name: string): PanelEntry => ({ name, isDir: true, size: 0, modified: null });
@@ -76,5 +76,38 @@ describe("resolveOperation", () => {
     expect(resolveOperation(useBrowseStore.getState(), "left")).toEqual({ error: "Nothing selected" });
     useBrowseStore.setState({ left: localPanel([file("a")], "/", 0), right: emptyPanel() });
     expect(resolveOperation(useBrowseStore.getState(), "left")).toEqual({ error: "Choose a source for the other panel first" });
+  });
+});
+
+describe("presignSelection", () => {
+  it("is null for a local panel, a panel without a source, and nothing selected", () => {
+    expect(presignSelection(localPanel([file("a")], "/home/me", 1))).toBeNull();
+    expect(presignSelection(emptyPanel())).toBeNull();
+    expect(presignSelection(bucketPanel([], "in/", 0))).toBeNull();
+  });
+
+  it("never targets the '..' row", () => {
+    expect(presignSelection(bucketPanel([file("a")], "in/", 0))).toBeNull();
+  });
+
+  it("uses the cursor item when nothing is marked, with the full key", () => {
+    expect(presignSelection(bucketPanel([file("a.txt"), file("b.txt")], "in/", 2))).toEqual({
+      bucket: "alpha",
+      items: [{ key: "in/b.txt", is_dir: false }],
+      hasFolder: false,
+    });
+    expect(presignSelection(bucketPanel([file("a.txt")], "", 0))?.items).toEqual([{ key: "a.txt", is_dir: false }]);
+  });
+
+  it("uses the marked items over the cursor; folders get a trailing slash and set hasFolder", () => {
+    const panel = { ...bucketPanel([file("a.txt"), dir("d"), file("z.txt")], "in/", 1), marked: { "a.txt": true as const, d: true as const } };
+    expect(presignSelection(panel)).toEqual({
+      bucket: "alpha",
+      items: [
+        { key: "in/a.txt", is_dir: false },
+        { key: "in/d/", is_dir: true },
+      ],
+      hasFolder: true,
+    });
   });
 });

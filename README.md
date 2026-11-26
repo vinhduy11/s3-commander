@@ -12,7 +12,7 @@ npm run tauri dev      # run the desktop app
 npm run build          # type-check + build the frontend
 cargo check            # run inside src-tauri/ to check the Rust side
 cargo test             # run inside src-tauri/; vault, s3, transfer planner and engine (mocked SDK, tempdirs, fake Trash); no network
-npm test               # vitest: panel store, navigation helpers, operation targets and dialog flow (mocked backend, no network)
+npm test               # vitest: panel store, navigation helpers, operation targets, dialog flow and presigned URL flow (mocked backend, no network)
 ```
 
 ## Project structure
@@ -37,7 +37,7 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 │   │   ├── master_key_screen.tsx  # create / unlock the vault
 │   │   ├── profiles_screen.tsx    # add, edit, delete, test, duplicate profiles; shows Rust's per-field save errors
 │   │   ├── profile_form.tsx       # profile form: inline per-field errors, Save disabled while invalid, http warning, collapsible Transfer settings, Import from AWS CLI
-│   │   └── browser_screen.tsx     # top bar (profile switcher, Lock), two panels, F-key bar (F2, F5-F8), operation dialogs
+│   │   └── browser_screen.tsx     # top bar (profile switcher, Lock), two panels, F-key bar (F2, F5-F9), operation dialogs
 │   ├── profile/
 │   │   ├── validate_profile.ts    # profile rules (mirror of profile_rules.rs) for instant feedback
 │   │   ├── aws_import_api.ts      # typed wrappers over aws_config_list_profiles / aws_config_read_profile
@@ -63,6 +63,12 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 │       ├── ops_store.ts           # Zustand store for the single open dialog (kept apart from panel state)
 │       ├── ops_flow.ts            # flows: preview, per-item conflicts, execute, delete, new folder, rename, refresh
 │       ├── ops_dialogs.tsx        # modal dialogs (delete, name, plan, conflicts, busy, result), Esc / Enter
+│       ├── modal.tsx              # the shared modal shell: scrim, focus trap, Esc / Enter
+│       ├── presign_flow.ts        # presigned URLs (step 3d): options, folder confirm, result, copy, save as text file
+│       ├── presign_logic.ts       # pure: expiry presets, custom value and unit parsing (1 s to 7 days), URL list text
+│       ├── presign_dialogs.tsx    # options, folder confirm and result dialogs
+│       ├── clipboard.ts           # copyText: Clipboard API, then select + execCommand("copy")
+│       ├── toast.tsx              # short status message (copy and save results)
 │       └── *.test.ts(x)           # vitest tests (backend mocked)
 └── src-tauri/            # Rust backend
     ├── Cargo.toml        # Rust deps
@@ -71,7 +77,7 @@ npm test               # vitest: panel store, navigation helpers, operation targ
     ├── icons/            # app icons
     └── src/
         ├── main.rs       # binary entry
-        ├── lib.rs        # Tauri builder, vault + client-cache state, thin commands (incl. transfer_preview, transfer_execute, items_delete, folder_create, item_rename)
+        ├── lib.rs        # Tauri builder, vault + client-cache state, thin commands (incl. transfer_preview, transfer_execute, items_delete, folder_create, item_rename, presign_preview, presign_urls, write_text_file)
         ├── app_error.rs  # AppError: the one error type the UI sees (serialized as a message); ProfileSaveError with per-field errors
         ├── profile_rules.rs # the one place that validates and normalizes a profile input (per-field errors); no Tauri dependency
         ├── transfer_settings.rs # per-profile transfer settings: size parser, validation, effective_transfer_settings (AWS CLI defaults)
@@ -82,6 +88,8 @@ npm test               # vitest: panel store, navigation helpers, operation targ
         ├── transfer_plan.rs  # pure transfer planner: key mapping, validation, conflicts, resolutions, summary, delete batches
         ├── transfer_run.rs   # operation engine: expand, probe, resolve, run, move = copy + verify + delete; delete, new folder, rename
         ├── s3_ops.rs     # object ops: list all, head, put, get, CopyObject / UploadPartCopy, DeleteObjects in batches
+        ├── presign.rs    # presigned GET URLs (local SigV4 computation): expiry bounds, content-disposition, folder expansion, batch; no Tauri dependency
+        ├── text_file.rs  # write_text_file for the URL list chosen in the save dialog; no Tauri dependency
         ├── local_ops.rs  # local walk, copy tree, rename, New folder, Trash behind the TrashBin trait
         └── vault.rs      # encrypted profile vault (Argon2id + XChaCha20-Poly1305), no Tauri dependency
 ```

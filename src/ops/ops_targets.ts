@@ -2,7 +2,7 @@
 
 import { type BrowseState, type PanelEntry, type PanelState, type Side } from "../browse/browse_store";
 import { buildRows } from "../browse/navigation";
-import type { Location, TopItem } from "./ops_api";
+import type { Location, PresignTarget, TopItem } from "./ops_api";
 
 export type Operation = { side: Side; destSide: Side; source: Location; dest: Location; items: TopItem[] };
 
@@ -40,4 +40,18 @@ export function resolveOperation(state: BrowseState, side: Side): Operation | { 
   const dest = panelLocation(state[destSide]);
   if (!source || !dest) return { error: "Choose a source for the other panel first" };
   return { side, destSide, source, dest, items };
+}
+
+export type PresignSelection = { bucket: string; items: PresignTarget[]; hasFolder: boolean };
+
+/** What F9 and "Copy presigned URL" act on: marked items, else the cursor item, of a server panel. */
+export function presignSelection(panel: PanelState): PresignSelection | null {
+  if (panel.source?.kind !== "bucket") return null;
+  const targets = selectTargets(panel);
+  if (!targets.length) return null;
+  return {
+    bucket: panel.source.bucket,
+    items: targets.map((target) => ({ key: panel.path + target.name + (target.is_dir ? "/" : ""), is_dir: target.is_dir })),
+    hasFolder: targets.some((target) => target.is_dir),
+  };
 }

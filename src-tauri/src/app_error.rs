@@ -13,6 +13,9 @@ pub enum AppError {
     S3(String),
     #[error("{0}")]
     Local(String),
+    /// Input the caller got wrong (an expiry out of range, a bad filename); nothing was attempted.
+    #[error("{0}")]
+    Invalid(String),
 }
 
 impl Serialize for AppError {

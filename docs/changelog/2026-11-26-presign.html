@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Presigned URLs (step 3d)</title></head><body>
+<h1>Presigned URLs for one or many files (roadmap step 3d)</h1>
+<h2>Specs</h2>
+<p>Create presigned GET URLs for the marked items or the cursor item of a server panel. Folders are expanded (zero-byte folder markers skipped, capped at 1000, count confirmed first). Expiry 1 second to 7 days, default 1 hour; optional download file name for a single file. Entry points: F9 Presign and "Copy presigned URL" in the right-click menu. Result dialog with Copy, Copy all and Save as text file. URLs are never logged or stored. Out of scope: presigned PUT, POST policies, drag and drop, sorting, multipart, View/Edit.</p>
+<h2>Actions</h2>
+<ul>
+<li>Rust <code>presign.rs</code>: expiry bounds, content-disposition encoding, <code>presign_get</code>, batch with per-item errors, folder expansion over <code>list_all</code>, preview, selection orchestration. <code>text_file.rs</code>: <code>write_text_file</code>. <code>AppError::Invalid</code> added. Commands <code>presign_preview</code>, <code>presign_urls</code>, <code>write_text_file</code> in <code>lib.rs</code>.</li>
+<li>New dependency <code>tauri-plugin-dialog</code> (Rust) and <code>@tauri-apps/plugin-dialog</code> (npm), registered in the builder, permission <code>dialog:allow-save</code> only: needed to show the native save dialog, the file itself is written by our own command.</li>
+<li>Frontend: <code>presignSelection</code>, <code>presign_flow.ts</code>, <code>presign_logic.ts</code>, <code>presign_dialogs.tsx</code>, <code>clipboard.ts</code>, <code>toast.tsx</code>, shared <code>modal.tsx</code> (moved out of <code>ops_dialogs.tsx</code>), F9 button (enabled by selection), context menu entry, styles.</li>
+<li>Tests, red first (saved outputs): Rust 133 total (21 new), Vitest 257 total. Rust: URL shape, determinism, key encoding, expiry bounds, disposition, batch order and per-item error, expansion, cap, secret never in any URL or error, write_text_file in a tempdir. Vitest: selection rules, menu entry, dialog flow, Copy and Copy all content, URLs cleared on close and unmount, expiry parsing, clipboard fallback.</li>
+<li>Docs: README, CHANGELOG, architect.md, safety.md, rule.md.</li>
+</ul>
+<h2>Tradeoffs</h2>
+<ul>
+<li>Items are sent with full keys; folder expansion is repeated in preview and in generate (two listings) instead of holding server state: simpler, but a folder can change between them.</li>
+<li>The full folder listing is held in memory before the cap applies (<code>ponytail</code> note in code); fine for thousands of objects, stream it if folders reach millions.</li>
+<li>Expiry is validated in the form for instant feedback and again in Rust, which is authoritative.</li>
+<li>The text file is written by our own small command, not by the fs plugin, so the capability stays at <code>dialog:allow-save</code> and no broad file-system scope is granted.</li>
+<li>The URL list is a dialog state in <code>ops_store</code>, cleared on close and on unmount; it trades convenience (no history of URLs) for never persisting a credential-like value.</li>
+<li>Measured: cargo test and vitest results, build, Chromium mock screenshots (light and dark). Inferred, not measured: that the Clipboard API or the <code>execCommand</code> fallback works in a WebKit webview inside Tauri; that a presigned URL is accepted by a real MinIO (signature correctness rests on the SDK).</li>
+<li>Not exercised: real MinIO, a real presigned download, the real clipboard and native save dialog in the Tauri window, WebKit, real keyboard use (F9 may be captured by the OS on macOS).</li>
+</ul>
+</body></html>

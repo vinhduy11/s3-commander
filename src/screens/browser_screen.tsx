@@ -10,8 +10,12 @@ import { openSource } from "../browse/panel_loader";
 import { OpsDialogs } from "../ops/ops_dialogs";
 import { startDelete, startNewFolder, startRename, startTransfer } from "../ops/ops_flow";
 import { useOpsStore } from "../ops/ops_store";
+import { presignSelection } from "../ops/ops_targets";
+import { startPresign } from "../ops/presign_flow";
+import { ToastView } from "../ops/toast";
 
 // F3 View and F4 Edit stay disabled until step 5.
+const PRESIGN_KEY = "F9";
 const FUNCTION_KEYS: { key: string; label: string; action?: () => void }[] = [
   { key: "F2", label: "Rename", action: () => startRename() },
   { key: "F3", label: "View" },
@@ -20,12 +24,15 @@ const FUNCTION_KEYS: { key: string; label: string; action?: () => void }[] = [
   { key: "F6", label: "Move", action: () => void startTransfer("move") },
   { key: "F7", label: "New folder", action: () => startNewFolder() },
   { key: "F8", label: "Delete", action: () => startDelete() },
+  { key: PRESIGN_KEY, label: "Presign", action: () => startPresign() },
 ];
 
 export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: () => void; onLock: () => void }) {
   const profileId = useBrowseStore((state) => state.profileId);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [topError, setTopError] = useState("");
+  // F9 needs a server panel with something selected (marked items, else the cursor item).
+  const canPresign = useBrowseStore((state) => presignSelection(state[state.active]) !== null);
 
   // Profile list: pick the stored profile if it still exists, otherwise the first one.
   useEffect(() => {
@@ -113,17 +120,18 @@ export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: 
           <button
             key={key}
             type="button"
-            disabled={!action}
-            title={action ? undefined : "Not available yet"}
+            disabled={!action || (key === PRESIGN_KEY && !canPresign)}
+            title={!action ? "Not available yet" : key === PRESIGN_KEY && !canPresign ? "Select files on a server panel" : undefined}
             onClick={() => !useOpsStore.getState().dialog && action?.()}
           >
             <span className="fk">{key}</span>{label}
           </button>
         ))}
       </div>
-      <div className="muted hint">Keys: Tab switches panel, Up/Down/PageUp/PageDown/Home/End move, Enter opens, Backspace goes up, Space marks, F2 renames, F5 copies, F6 moves, F7 creates a folder, F8 deletes.</div>
+      <div className="muted hint">Keys: Tab switches panel, Up/Down/PageUp/PageDown/Home/End move, Enter opens, Backspace goes up, Space marks, F2 renames, F5 copies, F6 moves, F7 creates a folder, F8 deletes, F9 presigns a URL.</div>
       <ContextMenu />
       <DragLayer />
+      <ToastView />
       <OpsDialogs />
     </div>
   );
