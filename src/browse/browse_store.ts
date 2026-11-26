@@ -4,6 +4,7 @@
 
 import { create } from "zustand";
 import { buildRows } from "./navigation";
+import { clampRatio, loadSplit, saveSplit } from "./panel_split";
 import { DEFAULT_SORT, nextSort, sortEntries, type SortKey, type SortState } from "./sort";
 
 export type Side = "left" | "right";
@@ -36,6 +37,9 @@ export type BrowseState = {
   active: Side;
   profileId: string | null;
   buckets: string[];
+  /** Layout slice: the left panel's share of the free width, persisted in localStorage. */
+  splitRatio: number;
+  setSplitRatio: (ratio: number) => void;
   setSource: (side: Side, source: PanelSource | null) => void;
   setListing: (side: Side, listing: Listing, options?: ListingOptions) => void;
   /** Header click and context menu: a new key sorts ascending, the active key reverses. */
@@ -72,6 +76,7 @@ export const initialBrowseState = () => ({
   active: "left" as Side,
   profileId: null as string | null,
   buckets: [] as string[],
+  splitRatio: loadSplit(),
 });
 
 const SIDES: Side[] = ["left", "right"];
@@ -133,6 +138,11 @@ export const useBrowseStore = create<BrowseState>((set) => {
     setScrollTop: (side, scrollTop) => patchPanel(side, (panel) => ({ ...panel, scrollTop })),
     setLoading: (side, loading) => patchPanel(side, (panel) => ({ ...panel, loading })),
     setError: (side, error) => patchPanel(side, (panel) => ({ ...panel, error, loading: false })),
+    setSplitRatio: (ratio) => {
+      const next = clampRatio(ratio);
+      saveSplit(next);
+      set({ splitRatio: next });
+    },
     setActive: (active) => set({ active }),
     setBuckets: (buckets) => set({ buckets }),
     setProfile: (profileId) =>

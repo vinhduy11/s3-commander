@@ -4,6 +4,7 @@ import { ContextMenu } from "../browse/context_menu_view";
 import { DragLayer } from "../browse/drag_drop_view";
 import { listenOsDrop } from "../browse/os_drop";
 import { FilePanel } from "../browse/file_panel";
+import { PanelSplitter, splitColumns } from "../browse/panel_splitter";
 import { listBuckets, listProfiles, type Profile } from "../browse/browse_api";
 import { useBrowseStore } from "../browse/browse_store";
 import { openSource } from "../browse/panel_loader";
@@ -29,6 +30,7 @@ const FUNCTION_KEYS: { key: string; label: string; action?: () => void }[] = [
 
 export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: () => void; onLock: () => void }) {
   const profileId = useBrowseStore((state) => state.profileId);
+  const splitRatio = useBrowseStore((state) => state.splitRatio);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [topError, setTopError] = useState("");
   // F9 needs a server panel with something selected (marked items, else the cursor item).
@@ -111,8 +113,9 @@ export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: 
         <button type="button" onClick={onManageProfiles}>Profiles</button>
         <button type="button" onClick={onLock}><LockIcon />Lock</button>
       </div>
-      <div className="panels">
+      <div className="panels" style={splitColumns(splitRatio)}>
         <FilePanel side="left" />
+        <PanelSplitter />
         <FilePanel side="right" />
       </div>
       <div className="fkeys">

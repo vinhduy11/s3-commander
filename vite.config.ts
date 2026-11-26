@@ -28,8 +28,9 @@ export default defineConfig(() => ({
         }
       : undefined,
     watch: {
-      // 3. tell Vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
+      // 3. tell Vite to ignore watching `src-tauri` (Rust build output included) and `.claude`
+      //    (git worktrees live there; their file changes must not reload the running dev page)
+      ignored: ["**/src-tauri/**", "**/src-tauri/target/**", "**/.claude/**"],
     },
   },
 }));

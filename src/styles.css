@@ -97,8 +97,15 @@ input:focus, select:focus { border-color: var(--accent); outline: 2px solid var(
 .bar-error { color: var(--danger); font-size: var(--text-sm); }
 .hint { font-size: var(--text-xs); }
 .hint kbd, .fkeys kbd { font: 600 var(--text-xs) var(--font-mono); }
-.panels { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
-.panel { box-shadow: 0 1px 2px rgb(20 24 40 / 5%); min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; outline: none; transition: border-color var(--ease), box-shadow var(--ease); }
+/* the 8px splitter column is the gap; each panel keeps 240px; --col-* come from the layout slice */
+.panels { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(240px, var(--col-left, 1fr)) 8px minmax(240px, var(--col-right, 1fr)); }
+.panel-splitter { position: relative; cursor: col-resize; touch-action: none; outline: none; }
+.panel-splitter::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--line); transition: background var(--ease), width var(--ease), margin-left var(--ease); }
+.panel-splitter:hover::before, body.resizing .panel-splitter::before { background: var(--accent); }
+.panel-splitter:focus-visible::before { background: var(--accent); width: 4px; margin-left: -2px; box-shadow: 0 0 0 2px var(--accent-soft); }
+body.resizing { cursor: col-resize; -webkit-user-select: none; user-select: none; }
+body.resizing * { cursor: col-resize !important; }
+.panel { container-type: inline-size; box-shadow: 0 1px 2px rgb(20 24 40 / 5%); min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; outline: none; transition: border-color var(--ease), box-shadow var(--ease); }
 .panel.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), var(--shadow); }
 .phead { display: flex; gap: var(--sp-2); padding: 6px var(--sp-2); background: var(--surface-2); border-bottom: 1px solid var(--line); align-items: center; min-width: 0; }
 .panel.active .phead { background: var(--surface); }
@@ -108,6 +115,11 @@ input:focus, select:focus { border-color: var(--accent); outline: 2px solid var(
 .tag.local { color: var(--ok); }
 
 .row { display: grid; grid-template-columns: minmax(0, 1fr) 56px 84px 124px; gap: 0 var(--sp-2); align-items: center; padding: 0 var(--sp-2); font: var(--text-sm) var(--font-mono); white-space: nowrap; }
+/* a narrowed panel (splitter) drops the Date column so Name keeps room; same columns as the narrow window */
+@container (max-width: 420px) {
+  .date { display: none; }
+  .row { grid-template-columns: minmax(0, 1fr) 48px 72px; }
+}
 .row > span { overflow: hidden; text-overflow: ellipsis; }
 .list-head { background: var(--surface); border-bottom: 1px solid var(--line); font: 600 var(--text-xs) var(--font-ui); text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); padding: 4px calc(var(--sp-2) + 4px + 10px) 4px calc(var(--sp-2) + 4px); }
 .list-head .sort-btn { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 3px; max-width: 100%; cursor: pointer; text-transform: inherit; letter-spacing: inherit; }
@@ -146,7 +158,8 @@ input:focus, select:focus { border-color: var(--accent); outline: 2px solid var(
 .fkeys button { padding: 4px; font-size: var(--text-sm); gap: 6px; background: var(--surface-2); }
 .fkeys button .fk { color: var(--accent); font: 700 var(--text-xs) var(--font-mono); }
 @media (max-width: 720px) {
-  .panels { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+  .panels { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; gap: var(--sp-2); }
+  .panel-splitter { display: none; }
   .fkeys { grid-template-columns: repeat(4, 1fr); }
   .date { display: none; }
   .row { grid-template-columns: minmax(0, 1fr) 56px 84px; }

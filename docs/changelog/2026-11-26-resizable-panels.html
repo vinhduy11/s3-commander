@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Resizable panels</title>
+<style>body{font:15px/1.5 system-ui;max-width:860px;margin:2rem auto;padding:0 1rem;color:#1c1d22}h2{margin-top:2rem}code{background:#f0f1f5;padding:1px 4px;border-radius:3px}</style></head><body>
+<h1>Resizable panels</h1>
+<h2>Specs</h2>
+<p>Owner request: the two file panels can be resized. A vertical splitter between them: drag to resize, 240 px minimum per panel, ratio kept on window resize, remembered across view switches and restarts, keyboard and screen-reader operable, hidden in the narrow single-column layout, never a drop target. Out of scope: column widths, vertical resize, operation logic.</p>
+<h2>Actions</h2>
+<ul>
+<li><code>src/browse/panel_split.ts</code>: pure clamp, keyboard step, pointer-to-ratio, guarded localStorage load and save.</li>
+<li><code>src/browse/panel_splitter.tsx</code>: the separator (pointer capture, ArrowLeft/Right 16 px, Shift 64 px, Home and double-click reset, <code>aria-value*</code>).</li>
+<li><code>src/browse/browse_store.ts</code>: <code>splitRatio</code> and <code>setSplitRatio</code> (layout slice).</li>
+<li><code>src/screens/browser_screen.tsx</code> and <code>src/styles.css</code>: 3-column grid, splitter styles, narrow-layout reset, <code>@container</code> rule hiding Date under 420 px.</li>
+<li>Tests: <code>panel_split.test.ts</code>, <code>panel_splitter.test.tsx</code> (keyboard, drag, remount, persistence failures, narrow CSS, hit-testing after a ratio change, splitter not a drop target). Red run first (modules missing), then green: 318 tests.</li>
+<li>Separate commit: Vite dev watcher ignores <code>.claude/</code> and <code>src-tauri/target/</code>.</li>
+<li>Checked in Chromium with a mocked Tauri bridge: real mouse drag to about 30/70 and to the minimum, keyboard focus, light and dark, narrow window.</li>
+</ul>
+<h2>Tradeoffs</h2>
+<ul>
+<li>Ratio, not pixels: panels scale with the window; the 240 px minimum is enforced by the grid (<code>minmax(240px, Nfr)</code>) so no resize observer is needed; JS clamps only during drag and keys.</li>
+<li>Splitter outside both panels: drop hit-testing already reads live DOM geometry and ignores anything outside <code>[data-panel]</code>, so no code change there.</li>
+<li>Panels intercept Tab to switch panel, so the splitter is reachable by click first, then keys; a global shortcut was not added.</li>
+<li>Narrow panels hide the Date column via a container query, otherwise Name collapsed to nothing at the minimum width.</li>
+<li>The watcher ignore also silences file watching when Vite itself runs from inside a worktree under <code>.claude/</code>; restart it there to pick up changes.</li>
+<li>Column-width resizing hook: the <code>.row</code> grid template is the single place; a future per-column variable set could follow the same store-and-persist pattern. Not built.</li>
+</ul>
+</body></html>

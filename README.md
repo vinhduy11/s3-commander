@@ -46,6 +46,8 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 │       ├── browse_store.ts        # Zustand store: one slice per panel, S3 reset on profile switch / lock
 │       ├── navigation.ts          # pure path, row and formatting helpers
 │       ├── sort.ts                # pure comparator (name, ext, size, date; folders first; natural order) and header-click cycle
+│       ├── panel_split.ts         # pure split rules (clamp, keyboard step, pointer to ratio) and guarded localStorage load/save
+│       ├── panel_splitter.tsx     # the draggable, keyboard-operable divider between the panels (role=separator)
 │       ├── browse_api.ts          # typed wrappers over the Tauri commands
 │       ├── panel_loader.ts        # loads listings into the store, drops stale responses; loadAll (capped) for server panels
 │       ├── file_panel.tsx         # one panel: source selector, sortable column headers, virtualised list, keyboard, footer hint
