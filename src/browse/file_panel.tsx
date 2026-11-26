@@ -5,7 +5,11 @@ import { useBrowseStore, type PanelSource, type Side } from "./browse_store";
 import { buildRows, formatDate, formatSize, splitName } from "./navigation";
 import { goUp, loadAll, loadMore, openRowAt, openSource } from "./panel_loader";
 import { type SortKey } from "./sort";
-import { openEmptyMenu, openMenuAtCursor, openRowMenu } from "./context_menu";
+import { openEmptyMenu, openMenuAtCursor, openRowMenu, useContextMenu } from "./context_menu";
+import { useRubberBand } from "./rubber_band";
+import { openPatternDialog } from "./selection_flow";
+import { useOpsStore } from "../ops/ops_store";
+import { useViewerStore } from "../viewer/viewer_store";
 import { panelDragProps, useDropHighlight } from "./drag_drop";
 import { ColumnResizer } from "./column_resizer";
 import { fitWidths, type ColumnKey } from "./panel_columns";
@@ -39,7 +43,7 @@ export function FilePanel({ side }: { side: Side }) {
   const isActive = useBrowseStore((state) => state.active === side);
   const drop = useDropHighlight(side);
   const buckets = useBrowseStore((state) => state.buckets);
-  const { setCursor, toggleMark, setActive, setScrollTop, sortBy } = useBrowseStore.getState();
+  const { setCursor, toggleMark, setActive, setScrollTop, sortBy, selectOnly, toggleAt, extendSelection } = useBrowseStore.getState();
 
   const panelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -48,6 +52,7 @@ export function FilePanel({ side }: { side: Side }) {
   const [viewportHeight, setViewportHeight] = useState(DEFAULT_VIEWPORT_HEIGHT);
 
   const rows = buildRows(panel.source, panel.path, panel.entries);
+  const { band, handlers: bandHandlers } = useRubberBand(side, listRef, ROW_HEIGHT);
 
   useLayoutEffect(() => {
     const list = listRef.current;
@@ -99,13 +104,31 @@ export function FilePanel({ side }: { side: Side }) {
 
   function onKeyDown(event: React.KeyboardEvent) {
     const page = Math.max(1, Math.floor(viewportHeight / ROW_HEIGHT) - 1);
+    const store = useBrowseStore.getState();
+    const mod = event.metaKey || event.ctrlKey;
+    const typing = event.target instanceof HTMLElement && /^(INPUT|SELECT|TEXTAREA)$/.test(event.target.tagName);
+    // Shift extends the marked range from the anchor, otherwise the cursor just moves.
+    const move = (to: number) => (event.shiftKey ? extendSelection(side, to) : setCursor(side, to));
+    if (event.key === "Escape") {
+      const overlay = useOpsStore.getState().dialog !== null || useViewerStore.getState().session !== null || useContextMenu.getState().menu !== null;
+      if (overlay || !Object.keys(store[side].marked).length) return;
+      event.preventDefault();
+      store.clearMarks(side);
+      return;
+    }
+    const selection: Record<string, () => void> = {
+      "*": () => store.invertSelection(side),
+      "+": () => openPatternDialog(side, "select"),
+      "-": () => openPatternDialog(side, "deselect"),
+    };
+    const selectionHandler = mod ? (event.key.toLowerCase() === "a" ? () => store.markAll(side) : undefined) : typing ? undefined : selection[event.key];
     const handlers: Record<string, () => void> = {
-      ArrowDown: () => setCursor(side, panel.cursor + 1),
-      ArrowUp: () => setCursor(side, panel.cursor - 1),
-      PageDown: () => setCursor(side, panel.cursor + page),
-      PageUp: () => setCursor(side, panel.cursor - page),
-      Home: () => setCursor(side, 0),
-      End: () => setCursor(side, rows.length - 1),
+      ArrowDown: () => move(panel.cursor + 1),
+      ArrowUp: () => move(panel.cursor - 1),
+      PageDown: () => move(panel.cursor + page),
+      PageUp: () => move(panel.cursor - page),
+      Home: () => move(0),
+      End: () => move(rows.length - 1),
       Enter: () => openRow(panel.cursor),
       Backspace: () => void goUp(side),
       " ": () => {
@@ -119,7 +142,7 @@ export function FilePanel({ side }: { side: Side }) {
         document.getElementById(`panel-${other}`)?.focus();
       },
     };
-    const handler = event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey) ? openMenuOnCursor : handlers[event.key];
+    const handler = selectionHandler ?? (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey) ? openMenuOnCursor : handlers[event.key]);
     if (!handler) return;
     event.preventDefault();
     handler();
@@ -181,6 +204,10 @@ export function FilePanel({ side }: { side: Side }) {
       <div
         className="list"
         ref={listRef}
+        role="listbox"
+        aria-multiselectable="true"
+        aria-label={`Files of the ${side} panel`}
+        {...bandHandlers}
         onContextMenu={(event) => {
           event.preventDefault();
           openEmptyMenu(side, event.clientX, event.clientY);
@@ -189,7 +216,8 @@ export function FilePanel({ side }: { side: Side }) {
           setScrollTop(side, event.currentTarget.scrollTop);
         }}
       >
-        <div style={{ height: rows.length * ROW_HEIGHT, position: "relative" }}>
+        <div role="presentation" style={{ height: rows.length * ROW_HEIGHT, position: "relative" }}>
+          {band && <div className="band" style={band} />}
           {rows.slice(first, last).map((row, offset) => {
             const index = first + offset;
             const { base, ext } = row.isDir || row.isUp ? { base: row.name, ext: "" } : splitName(row.name);
@@ -200,11 +228,15 @@ export function FilePanel({ side }: { side: Side }) {
                 data-row-name={row.isUp ? ".." : row.name}
                 data-row-dir={row.isDir ? "true" : undefined}
                 data-row-up={row.isUp ? "true" : undefined}
+                role="option"
+                aria-selected={!!panel.marked[row.name]}
                 className={classes.join(" ")}
                 style={{ position: "absolute", top: index * ROW_HEIGHT, height: ROW_HEIGHT, left: 0, right: 0 }}
-                onClick={() => {
+                onClick={(event) => {
                   setActive(side);
-                  setCursor(side, index);
+                  if (event.shiftKey) extendSelection(side, index);
+                  else if (event.metaKey || event.ctrlKey) toggleAt(side, index);
+                  else selectOnly(side, index);
                 }}
                 onDoubleClick={() => openRow(index)}
                 onContextMenu={(event) => {
@@ -225,13 +257,14 @@ export function FilePanel({ side }: { side: Side }) {
           })}
         </div>
       </div>
+      <div className="sr-only" role="status" aria-live="polite">{panel.selectionNote}</div>
       <div className={`pfoot${panel.loading && !panel.error ? " loading" : ""}`} role={panel.error ? "alert" : undefined}>
         {panel.error
           ? panel.error
           : panel.loading
             ? "Loading..."
             : markedNames.length
-              ? `${formatSize(markedSize)} in ${markedNames.length} marked`
+              ? `${markedNames.length} selected, ${formatSize(markedSize)}`
               : `${panel.entries.length} item(s)${panel.nextToken ? " (more below)" : ""}`}
         {panel.source?.kind === "bucket" && panel.nextToken && !panel.error && (
           <span className="sort-hint">

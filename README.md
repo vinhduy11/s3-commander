@@ -45,6 +45,9 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 │   │   └── validation_cases.json  # shared test table, read by both the vitest and the Rust tests
 │   └── browse/
 │       ├── browse_store.ts        # Zustand store: one slice per panel, S3 reset on profile switch / lock
+│       ├── selection.ts           # pure selection rules: range from the anchor, toggle, all, invert, glob matcher, rubber-band hit-test
+│       ├── selection_flow.ts      # opens the "Select by pattern" dialog (keys + and -, context menu)
+│       ├── rubber_band.ts         # hook: rubber-band selection from empty list space (pointer capture, auto-scroll, Esc cancels)
 │       ├── navigation.ts          # pure path, row and formatting helpers
 │       ├── sort.ts                # pure comparator (name, ext, size, date; folders first; natural order) and header-click cycle
 │       ├── panel_split.ts         # pure split rules (clamp, keyboard step, pointer to ratio) and guarded localStorage load/save
@@ -90,6 +93,7 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 │       ├── panel_refresh.ts       # refreshPanel: reload a panel with openPath, keep the cursor row
 │       ├── ops_dialogs.tsx        # modal dialogs (delete, name, plan, conflicts, busy, result), Esc / Enter
 │       ├── modal.tsx              # the shared modal shell: scrim, focus trap, Esc / Enter
+│       ├── pattern_dialog.tsx     # "Select by pattern" / "Deselect by pattern" modal with the live match count
 │       ├── presign_flow.ts        # presigned URLs (step 3d): options, folder confirm, result, copy, save as text file
 │       ├── presign_logic.ts       # pure: expiry presets, custom value and unit parsing (1 s to 7 days), URL list text
 │       ├── presign_dialogs.tsx    # options, folder confirm and result dialogs

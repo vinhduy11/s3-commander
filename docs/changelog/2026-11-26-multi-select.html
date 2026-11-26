@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Multi-select in the file panels</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:860px;margin:32px auto;padding:0 16px;color:#1b1d24}h2{border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:28px}code{background:#f2f3f6;padding:1px 4px;border-radius:3px}</style></head><body>
+<h1>Multi-select in the file panels</h1>
+<h2>Specs</h2>
+<ul>
+<li>Owner request (top priority): the app lacks multi select. The marked set stays THE selection consumed by F5, F6, F8, F9, drag, presign and the context menu.</li>
+<li>Mouse: plain, Cmd/Ctrl and Shift click; anchor per panel. Keyboard: Shift+movement keys, Cmd/Ctrl+A, Esc, <code>*</code>, <code>+</code> and <code>-</code> (glob pattern modal with preview count). Rubber band from empty list space. Empty-area menu entries. Accessibility: listbox, aria-selected, polite announcement, footer "N selected, size".</li>
+<li>Out of scope: what operations do with the selection, new operations, go-to-path, remember-last-folder, the updater.</li>
+</ul>
+<h2>Actions</h2>
+<ul>
+<li>New: <code>selection.ts</code> (pure rules), <code>selection_flow.ts</code>, <code>rubber_band.ts</code>, <code>ops/pattern_dialog.tsx</code>; two test files (<code>selection.test.ts</code>, <code>multi_select_panel.test.tsx</code>).</li>
+<li>Changed: <code>browse_store.ts</code> (<code>anchor</code>, <code>selectionNote</code>, seven actions), <code>file_panel.tsx</code> (click variants, keys, aria, band, live region, footer), <code>context_menu.ts</code> (four entries), <code>ops_store.ts</code> / <code>ops_dialogs.tsx</code> (new dialog kind), <code>styles.css</code> (mark background, band, sr-only, menu separator), one existing context-menu test updated for the new first entries.</li>
+<li>Docs: README structure, CHANGELOG, architect (selection model and shortcut table), rule.</li>
+</ul>
+<h2>Tradeoffs</h2>
+<ul>
+<li>Selection logic lives in the click handler, not pointer-down: the drag module already swallows the click after a real drag, so a pointer-down on a marked row keeps the drag set and only a click without drag clears the marks. No change to the drag module.</li>
+<li>Cmd/Ctrl+click after a plain click turns the plain-clicked row into a real mark (otherwise the first row would silently drop out). Only when the cursor row is the anchor, so a fresh load does not mark the first row.</li>
+<li>Pattern dialog is a new kind in the existing <code>ops_store</code> dialog union, so it inherits one-dialog-at-a-time, focus trap and the "function keys act only when no dialog is open" rule. "Select" adds to the marks, "Deselect" removes (Total Commander style).</li>
+<li>Rubber band hit-testing is vertical only (rows span the full list width and the press is inside the list, so the horizontal test is always true). A click on empty space without drag clears the marks (Shift/Cmd/Ctrl keeps them).</li>
+<li>The list became <code>role="listbox"</code> with <code>option</code> rows; the footer wording changed from "size in N marked" to "N selected, size".</li>
+<li>On macOS, Ctrl+click is a right-click and opens the menu; Cmd+click is the Mac gesture, Ctrl+click works on Linux.</li>
+</ul>
+<h2>Measured</h2>
+<ul>
+<li><code>npm test</code>: 40 files, 594 tests pass (red run first: 26 failures plus a file that could not import). <code>npm run build</code> ok.</li>
+<li>Chromium mock screenshots (fake data, light and dark): Cmd-click set, Shift range, Shift+Arrow, Cmd/Ctrl+A, rubber band in progress, pattern modal with count, empty-area menu. Resulting marked sets were read back from the DOM and matched.</li>
+</ul>
+<h2>Inferred, not exercised</h2>
+<ul>
+<li>The real Tauri window and WebKit pointer behavior (pointer capture, Cmd+click, scrollbar hit area), trackpad gestures, real keyboard use incl. Cmd+A inside the webview (the Playwright run used Ctrl+A), screen reader output of the live region, very large listings (marks are a name map; no timing measured).</li>
+<li>The menu separator under the selection entries was added after the screenshots and not re-shot.</li>
+</ul>
+</body></html>

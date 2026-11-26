@@ -149,6 +149,11 @@ body.resizing * { cursor: col-resize !important; }
 .panel.active .list .row.sel { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
 .row.mark .label, .row.mark .num, .row.mark span { color: var(--mark); font-weight: 700; }
 .row.mark .ico { color: var(--mark); }
+.list { position: relative; -webkit-user-select: none; user-select: none; }
+.list .row[aria-selected="true"] { background: color-mix(in srgb, var(--mark) 14%, transparent); }
+.panel.active .list .row.sel[aria-selected="true"] { background: color-mix(in srgb, var(--mark) 14%, var(--accent-soft)); }
+.list .band { position: absolute; z-index: 1; pointer-events: none; border: 1px solid var(--mark); background: color-mix(in srgb, var(--mark) 12%, transparent); border-radius: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .pfoot { padding: 5px var(--sp-2); border-top: 1px solid var(--line); background: var(--surface-2); font-size: var(--text-sm); color: var(--muted); display: flex; align-items: center; gap: 6px; }
 .sort-hint { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); }
 .pfoot .sort-hint button { min-height: 20px; padding: 0 6px; font-size: var(--text-xs); }
@@ -223,6 +228,7 @@ button.danger-fill:hover:not(:disabled) { background: var(--danger); border-colo
 .ctx-item[data-id="delete"]:not([aria-disabled="true"]) { color: var(--danger); }
 .ctx-item[data-id="new-folder"] { margin-top: var(--sp-1); border-top: 1px solid var(--line-soft); border-radius: 0 0 var(--radius) var(--radius); padding-top: 5px; }
 .ctx-menu .ctx-item[data-id="new-folder"]:only-child { margin-top: 0; border-top: 0; border-radius: var(--radius); padding-top: 3px; }
+.ctx-item[data-id="sort-name"] { margin-top: var(--sp-1); border-top: 1px solid var(--line-soft); border-radius: 0 0 var(--radius) var(--radius); padding-top: 5px; }
 .ctx-item[aria-checked="true"] .ctx-label { font-weight: 600; }
 .ctx-item[data-id="sort-reverse"] { margin-bottom: 0; }
 .ctx-key { font: 600 var(--text-xs) var(--font-mono); color: var(--muted); }

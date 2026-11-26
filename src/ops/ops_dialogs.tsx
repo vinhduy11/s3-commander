@@ -13,6 +13,7 @@ import {
 import { Buttons, Modal } from "./modal";
 import { PresignConfirmDialog, PresignOptionsDialog, PresignResultDialog } from "./presign_dialogs";
 import { useOpsStore } from "./ops_store";
+import { PatternDialog } from "./pattern_dialog";
 
 const MAX_LISTED_ITEMS = 5;
 
@@ -91,6 +92,8 @@ export function OpsDialogs() {
 
   if (!dialog) return null;
   switch (dialog.kind) {
+    case "select-pattern":
+      return <PatternDialog side={dialog.side} mode={dialog.mode} />;
     case "presign-options":
       return <PresignOptionsDialog dialog={dialog} />;
     case "presign-confirm":

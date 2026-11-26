@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+- Multi-select in the file panels. Mouse: plain click selects just that row, Cmd or Ctrl+click toggles it, Shift+click marks the range from the anchor (the row of the last plain or Cmd/Ctrl click, per panel, reset on navigation and source change). Keyboard: Shift+Arrow, PageUp, PageDown, Home and End extend the range, Cmd/Ctrl+A selects all, Esc clears (ignored while a dialog, menu or the viewer is open), `*` inverts, `+` and `-` open "Select by pattern" / "Deselect by pattern" (glob with `*` and `?`, case-insensitive, whole name, with a live match count). Dragging from empty list space draws a rubber band that marks the rows it touches (Shift or Cmd/Ctrl adds, auto-scroll, Esc cancels). The empty-area context menu gets Select all, Invert selection, Select by pattern... and Clear selection. The marked set stays the selection every operation already uses; ".." is never marked.
+- Accessibility: the list is a `listbox` with `aria-multiselectable`, rows are `option` with `aria-selected`, and the selection count is announced politely after bulk actions.
+
+### Changed
+- The panel footer reads "N selected, <size>" (was "<size> in N marked"). A plain click now clears the marks (it used to only move the cursor); Cmd or Ctrl+click after a plain click keeps that first row selected.
+
 ## [1.0.0] - 2026-11-26
 
 First release: macOS DMG (unsigned), dual-pane MinIO file manager.

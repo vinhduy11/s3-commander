@@ -6,6 +6,7 @@ import { create } from "zustand";
 import { buildRows } from "./navigation";
 import { clampWidth, loadColumns, resetWidth, saveColumns, type ColumnKey, type PanelColumns } from "./panel_columns";
 import { clampRatio, loadSplit, saveSplit } from "./panel_split";
+import { allNames, invertMarks, marksOf, matchNames, rangeNames, selectionText, toggleName, type Marks } from "./selection";
 import { DEFAULT_SORT, nextSort, sortEntries, type SortKey, type SortState } from "./sort";
 
 export type Side = "left" | "right";
@@ -21,7 +22,11 @@ export type PanelState = {
   nextToken: string | null;
   /** Index into the rows (the ".." row counts when present). */
   cursor: number;
-  marked: Record<string, true>;
+  marked: Marks;
+  /** Name of the row of the last plain or Cmd/Ctrl click (or where a Shift extension started); the fixed end of a range. */
+  anchor: string | null;
+  /** Polite text for the screen-reader live region, set by bulk selection actions. */
+  selectionNote: string;
   scrollTop: number;
   loading: boolean;
   error: string;
@@ -53,6 +58,18 @@ export type BrowseState = {
   setCursor: (side: Side, cursor: number) => void;
   toggleMark: (side: Side, name: string) => void;
   clearMarks: (side: Side) => void;
+  /** Plain click: just this row (cursor row is the implicit selection), the marks clear. */
+  selectOnly: (side: Side, index: number) => void;
+  /** Cmd/Ctrl+click: toggle the row, move the cursor and the anchor. */
+  toggleAt: (side: Side, index: number) => void;
+  /** Shift+click and Shift+keys: the cursor moves to `index` and the marks become anchor..index. */
+  extendSelection: (side: Side, index: number) => void;
+  markAll: (side: Side) => void;
+  invertSelection: (side: Side) => void;
+  /** Rubber band: replace the marks (no announcement while the band moves). */
+  setMarks: (side: Side, marks: Marks, announce?: boolean) => void;
+  /** Select or deselect the entries matching a glob; returns how many matched. */
+  applyPattern: (side: Side, pattern: string, mode: "select" | "deselect") => number;
   setScrollTop: (side: Side, scrollTop: number) => void;
   setLoading: (side: Side, loading: boolean) => void;
   setError: (side: Side, error: string) => void;
@@ -69,6 +86,8 @@ export const emptyPanel = (): PanelState => ({
   nextToken: null,
   cursor: 0,
   marked: {},
+  anchor: null,
+  selectionNote: "",
   scrollTop: 0,
   loading: false,
   error: "",
@@ -87,7 +106,10 @@ export const initialBrowseState = () => ({
 
 const SIDES: Side[] = ["left", "right"];
 
-const rowCount = (panel: PanelState) => buildRows(panel.source, panel.path, panel.entries).length;
+const rowsOf = (panel: PanelState) => buildRows(panel.source, panel.path, panel.entries);
+const rowCount = (panel: PanelState) => rowsOf(panel).length;
+const withMarks = (panel: PanelState, marked: Marks, note = true): PanelState =>
+  ({ ...panel, marked, ...(note ? { selectionNote: selectionText(Object.keys(marked).length) } : {}) });
 
 /** Index of the item the cursor was on in `before`, found by name in `after` (rows change when the order or the entries do). */
 function cursorAfter(before: PanelState, after: PanelState): number {
@@ -121,10 +143,13 @@ export const useBrowseStore = create<BrowseState>((set) => {
       patchPanel(side, (panel) => {
         const entries = sortEntries(options.append ? [...panel.entries, ...listing.entries] : listing.entries, panel.sort);
         const next = { ...panel, entries, path: listing.path, nextToken: listing.nextToken, loading: false, error: "" };
-        if (options.append) return { ...next, cursor: cursorAfter(panel, next) };
+        if (options.append) {
+          const anchor = panel.anchor !== null && entries.some((entry) => entry.name === panel.anchor) ? panel.anchor : null;
+          return { ...next, anchor, cursor: cursorAfter(panel, next) };
+        }
         const rows = buildRows(panel.source, listing.path, entries);
         const focused = options.focusName === undefined ? -1 : rows.findIndex((row) => row.name === options.focusName);
-        return { ...next, cursor: Math.max(focused, 0), marked: {}, scrollTop: 0 };
+        return { ...next, cursor: Math.max(focused, 0), marked: {}, anchor: null, selectionNote: "", scrollTop: 0 };
       }),
     sortBy: (side, key) => patchPanel(side, (panel) => resort(panel, nextSort(panel.sort, key))),
     reverseSort: (side) => patchPanel(side, (panel) => resort(panel, { ...panel.sort, dir: panel.sort.dir === "asc" ? "desc" : "asc" })),
@@ -133,14 +158,46 @@ export const useBrowseStore = create<BrowseState>((set) => {
         const clamped = Math.max(0, Math.min(cursor, rowCount(panel) - 1));
         return clamped === panel.cursor ? panel : { ...panel, cursor: clamped };
       }),
-    toggleMark: (side, name) =>
+    toggleMark: (side, name) => patchPanel(side, (panel) => ({ ...panel, marked: toggleName(panel.marked, name) })),
+    clearMarks: (side) => patchPanel(side, (panel) => (Object.keys(panel.marked).length ? withMarks(panel, {}) : panel)),
+    selectOnly: (side, index) =>
       patchPanel(side, (panel) => {
-        const marked = { ...panel.marked };
-        if (marked[name]) delete marked[name];
-        else marked[name] = true;
-        return { ...panel, marked };
+        const cursor = Math.max(0, Math.min(index, rowCount(panel) - 1));
+        return { ...panel, cursor, marked: {}, anchor: rowsOf(panel)[cursor]?.name ?? null, selectionNote: "" };
       }),
-    clearMarks: (side) => patchPanel(side, (panel) => (Object.keys(panel.marked).length ? { ...panel, marked: {} } : panel)),
+    toggleAt: (side, index) =>
+      patchPanel(side, (panel) => {
+        const cursor = Math.max(0, Math.min(index, rowCount(panel) - 1));
+        const rows = rowsOf(panel);
+        const name = rows[cursor]?.name ?? null;
+        // The row of a plain click is the implicit selection; it becomes a real mark when a second row joins it.
+        const implicit = !Object.keys(panel.marked).length && panel.anchor !== null && panel.anchor === rows[panel.cursor]?.name;
+        const base = implicit ? toggleName(panel.marked, panel.anchor as string) : panel.marked;
+        return { ...panel, cursor, anchor: name, marked: name === null ? base : toggleName(base, name), selectionNote: "" };
+      }),
+    extendSelection: (side, index) =>
+      patchPanel(side, (panel) => {
+        const rows = rowsOf(panel);
+        const cursor = Math.max(0, Math.min(index, rows.length - 1));
+        const anchor = panel.anchor !== null && rows.some((row) => row.name === panel.anchor) ? panel.anchor : (rows[panel.cursor]?.name ?? null);
+        const target = rows[cursor]?.name;
+        if (target === undefined) return panel;
+        return withMarks({ ...panel, cursor, anchor }, marksOf(rangeNames(rows, anchor, target)));
+      }),
+    markAll: (side) => patchPanel(side, (panel) => withMarks(panel, marksOf(allNames(rowsOf(panel))))),
+    invertSelection: (side) => patchPanel(side, (panel) => withMarks(panel, invertMarks(rowsOf(panel), panel.marked))),
+    setMarks: (side, marks, announce = false) => patchPanel(side, (panel) => withMarks(panel, marks, announce)),
+    applyPattern: (side, pattern, mode) => {
+      const panel = useBrowseStore.getState()[side];
+      const matched = matchNames(panel.entries.map((entry) => entry.name), pattern);
+      const marked = { ...panel.marked };
+      for (const name of matched) {
+        if (mode === "select") marked[name] = true;
+        else delete marked[name];
+      }
+      patchPanel(side, (current) => withMarks(current, marked));
+      return matched.length;
+    },
     setScrollTop: (side, scrollTop) => patchPanel(side, (panel) => ({ ...panel, scrollTop })),
     setLoading: (side, loading) => patchPanel(side, (panel) => ({ ...panel, loading })),
     setError: (side, error) => patchPanel(side, (panel) => ({ ...panel, error, loading: false })),

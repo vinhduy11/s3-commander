@@ -24,6 +24,7 @@ export type Dialog =
   | { kind: "presign-confirm"; bucket: string; items: PresignTarget[]; expiresSecs: number; downloadFilename: string | null; count: number; cap: number; capped: boolean }
   // Holds live signed URLs: only ever in this open dialog, dropped when it closes (see docs/claude/safety.md).
   | { kind: "presign-result"; items: PresignedItem[]; total: number; capped: boolean }
+  | { kind: "select-pattern"; side: Side; mode: "select" | "deselect" }
   | { kind: "busy"; label: string }
   | { kind: "result"; title: string; lines: string[]; failed: ItemFailure[] };
 

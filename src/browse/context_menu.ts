@@ -12,6 +12,7 @@ import { cursorTarget, panelLocation, presignSelection, selectTargets } from "..
 import { useBrowseStore, type Side } from "./browse_store";
 import { buildRows } from "./navigation";
 import { openRowAt } from "./panel_loader";
+import { openPatternDialog } from "./selection_flow";
 import { SORT_KEYS, type SortKey } from "./sort";
 
 export type MenuKind = "row" | "empty";
@@ -120,6 +121,20 @@ function sortItems(side: Side): MenuItem[] {
   ];
 }
 
+const modA = () => (typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘A" : "Ctrl+A");
+
+/** Empty-area entries; the same store actions the keyboard calls (Cmd/Ctrl+A, *, +, Esc). */
+function selectionItems(side: Side): MenuItem[] {
+  const panel = browse()[side];
+  const hasRows = panel.entries.length > 0;
+  return [
+    { id: "select-all", label: "Select all", shortcut: modA(), enabled: hasRows, run: () => browse().markAll(side) },
+    { id: "invert-selection", label: "Invert selection", shortcut: "*", enabled: hasRows, run: () => browse().invertSelection(side) },
+    { id: "select-pattern", label: "Select by pattern...", shortcut: "+", enabled: hasRows, run: () => openPatternDialog(side, "select") },
+    { id: "clear-selection", label: "Clear selection", shortcut: "Esc", enabled: Object.keys(panel.marked).length > 0, run: () => browse().clearMarks(side) },
+  ];
+}
+
 export function buildMenuItems(side: Side, kind: MenuKind): MenuItem[] {
   const newFolder: MenuItem = {
     id: "new-folder",
@@ -128,5 +143,5 @@ export function buildMenuItems(side: Side, kind: MenuKind): MenuItem[] {
     enabled: panelLocation(browse()[side]) !== null,
     run: () => startNewFolder(side),
   };
-  return kind === "empty" ? [...sortItems(side), newFolder] : [...rowItems(side), newFolder];
+  return kind === "empty" ? [...selectionItems(side), ...sortItems(side), newFolder] : [...rowItems(side), newFolder];
 }

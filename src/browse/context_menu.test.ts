@@ -61,12 +61,12 @@ describe("selection on right-click", () => {
     expect(browse().left.cursor).toBe(3);
   });
 
-  it("empty space keeps cursor and marks, activates the panel, and offers only New folder", () => {
+  it("empty space keeps cursor and marks, activates the panel, and offers selection, sort and New folder", () => {
     browse().toggleMark("left", "a.txt");
     openEmptyMenu("left", 5, 6);
     expect(browse().left.marked).toEqual({ "a.txt": true });
     expect(browse().active).toBe("left");
-    expect(ids(buildMenuItems("left", "empty"))).toEqual(["sort-name", "sort-ext", "sort-size", "sort-date", "sort-reverse", "new-folder"]);
+    expect(ids(buildMenuItems("left", "empty"))).toEqual(["select-all", "invert-selection", "select-pattern", "clear-selection", "sort-name", "sort-ext", "sort-size", "sort-date", "sort-reverse", "new-folder"]);
   });
 
   it("is ignored while a dialog is open", () => {

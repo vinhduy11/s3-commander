@@ -89,6 +89,23 @@ Design from the project owner; the vault, browsing (step 2), its dual-pane UI, t
 - Rules: plain drop = copy, Shift = move; same panel = move into a folder row only; Esc cancels; refusals show a toast and run nothing.
 - **OS drop path** (`os_drop.ts`): `getCurrentWebview().onDragDropEvent` gives absolute paths and a physical-pixel position relative to the webview. The position is divided by `devicePixelRatio` and hit-tested to a panel and folder row. Only a server panel accepts it; a Local panel or a panel without a source is ignored with a message. `local_stat_paths` (Rust, `local.rs`) tells folders from files and splits parent and name; all paths must share one parent (items are relative to a source directory), then the upload runs as a copy through `startTransferOf`. The event is enabled by `dragDropEnabled: true` on the window in `tauri.conf.json` (it is the default; set explicitly). Dragging out of the app is not supported.
 
+## Selection model (multi-select)
+
+- State per panel in `browse_store`: `marked` (names, THE selection that F5, F6, F8, F9, drag, presign and the context menu consume through `selectTargets`), `cursor` (row index; the implicit selection when nothing is marked), `anchor` (row name of the last plain or Cmd/Ctrl click, or where a Shift extension started; the fixed end of a range) and `selectionNote` (polite live-region text after bulk actions). Rows are identified by name, so sorting and page loads keep marks and anchor; the anchor resets on `setListing` (navigation), `setSource` and when its row is gone. ".." is never marked.
+- Pure rules in `selection.ts` (range, toggle, all, invert, glob, band hit-test); store actions `selectOnly`, `toggleAt`, `extendSelection`, `markAll`, `invertSelection`, `setMarks`, `applyPattern`. Clicks go through the row `onClick`, so a pointer-down on a marked row that turns into a drag keeps the marks (drag module swallows the click after a real drag).
+- Rubber band (`rubber_band.ts`): starts only on a pointer-down that is not on a row and not on the scrollbar; the list owns pointer capture, so row drags, column borders and the splitter are untouched.
+
+| Input | Action |
+|---|---|
+| Click / Cmd or Ctrl+click / Shift+click | select only / toggle / range from anchor |
+| Shift+Arrow, PageUp, PageDown, Home, End | extend range from anchor |
+| Cmd or Ctrl+A | mark all except ".." |
+| Esc | clear marks (not while a dialog, menu or viewer is open) |
+| `*` | invert marks |
+| `+` / `-` | Select / Deselect by pattern dialog |
+| Space, Insert | toggle and advance (unchanged) |
+| Drag from empty space | rubber band (Shift or Cmd/Ctrl adds, Esc cancels) |
+
 ## Presigned URLs (implemented, roadmap step 3d)
 
 - `src-tauri/src/presign.rs` (no Tauri dependency): SigV4 query signing through `aws-sdk-s3` `PresigningConfig` with the profile's static credentials; a local computation, no request is sent. The URL uses the client's endpoint and path-style addressing. `expiry_duration` allows 1 second to 604800 (7 days) and rejects the rest with `AppError::Invalid`; `content_disposition` builds `attachment; filename="<ascii fallback>"; filename*=UTF-8''<percent-encoded>` and rejects empty names and control characters; `presign_get` (one key), `presign_keys` (batch, order kept, a failing key is a per-item `error`), `expand_targets` (files as they are, folders through `s3_ops::list_all`, zero-byte `dir/` markers skipped, cut at `MAX_URLS` = 1000 with the full `total` reported), `presign_selection` and `preview_selection` (object count before generating). `start` time is a parameter so tests are deterministic.
