@@ -6,7 +6,9 @@ Design from the project owner; the vault below is implemented, the dual-pane UI 
 - **UI**: Total Commander-style dual pane. Two independent panels, each listing a directory/prefix with columns Name, Ext, Size, Date; a function-key bar at the bottom (F3 View, F4 Edit, F5 Copy, F6 Move, F7 New Folder, F8 Delete, Alt+F4 Exit); keyboard-driven navigation. Copy/Move between the two panels is the core workflow.
 - **Scope**: manage directories (S3 prefixes) and files (objects) on a MinIO server (S3-compatible API, not AWS S3 itself). MinIO usually needs path-style addressing; for local testing, run a MinIO container from the shared `lab-infra` stack if it has one, otherwise ask before adding one.
 - **Profiles**: multiple profiles, each holding a custom endpoint URL (no AWS-only assumptions: no fixed region/endpoint resolution, path-style addressing may be needed) and its secrets.
-- **Security**: profile secrets are encrypted via a keychain; a master key is required to log in (unlock) the app.
+- **Security**: profile secrets live in the app's own encrypted vault (see Vault below), not the OS keychain; a master key is required to log in (unlock) the app. An optional OS-keychain "remember on this device" is planned with a silent fallback to the master-key prompt (see `docs/implement/s3-commander-roadmap.md`).
+- **S3 client**: `aws-sdk-s3`, one client per unlocked profile (endpoint URL, path-style, static credentials, checksums only when required); the bucket is passed per request, so one client serves every bucket.
+- **Platforms**: macOS and Linux. The vault is plain files, so it behaves the same on both; do not make the OS keychain a hard dependency (minimal Linux setups have no Secret Service).
 
 ## Vault (implemented)
 

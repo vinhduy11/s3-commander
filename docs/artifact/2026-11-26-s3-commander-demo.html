@@ -1,0 +1,271 @@
+<title>S3 Commander Demo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+/* Layout: classic dual-pane file manager, one screen, function-key bar at the bottom. */
+:root {
+  --bg: #e9e6df; --surface: #fbfaf7; --surface-2: #f0ede6; --line: #c9c4b8;
+  --fg: #23211d; --muted: #6d675b; --accent: #1f5f8b; --accent-fg: #ffffff;
+  --dir: #1f5f8b; --mark: #b3261e; --sel: #cfe0ee; --sel-off: #e3e0d8; --ok: #2d6a3e;
+  --sans: "IBM Plex Sans", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15171a; --surface: #1c1f23; --surface-2: #24282d; --line: #3a4048;
+  --fg: #e4e2dc; --muted: #9a9a92; --accent: #6fb0e0; --accent-fg: #10161b;
+  --dir: #7fbbe6; --mark: #ff7a70; --sel: #26425a; --sel-off: #2b2f35; --ok: #7ecb94; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #15171a; --surface: #1c1f23; --surface-2: #24282d; --line: #3a4048;
+  --fg: #e4e2dc; --muted: #9a9a92; --accent: #6fb0e0; --accent-fg: #10161b;
+  --dir: #7fbbe6; --mark: #ff7a70; --sel: #26425a; --sel-off: #2b2f35; --ok: #7ecb94; color-scheme: dark; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 13px;
+  padding-block: 8px; padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
+#app { height: 100%; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bar .title { font-weight: 600; margin-right: auto; }
+.tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line); padding: 2px 6px; border-radius: 3px; }
+select, button, input, textarea { font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 3px; padding: 4px 8px; }
+button { cursor: pointer; } button:hover { background: var(--surface-2); }
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible, .panel:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.panels { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 3px; }
+.panel.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.phead { display: flex; gap: 6px; padding: 6px; background: var(--surface-2); border-bottom: 1px solid var(--line); align-items: center; min-width: 0; }
+.phead .path { font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.list { flex: 1; min-height: 0; overflow: auto; font-family: var(--mono); font-size: 12px; }
+table { border-collapse: collapse; width: 100%; }
+th { position: sticky; top: 0; background: var(--surface-2); text-align: left; font-weight: 600; padding: 3px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 2px 8px; white-space: nowrap; }
+td.name { width: 100%; max-width: 0; overflow: hidden; text-overflow: ellipsis; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr { cursor: default; } tr.dir td.name { color: var(--dir); font-weight: 600; }
+tr.sel { background: var(--sel-off); } .panel.active tr.sel { background: var(--sel); }
+tr.mark td { color: var(--mark); font-weight: 600; }
+.pfoot { padding: 4px 8px; border-top: 1px solid var(--line); background: var(--surface-2); font-size: 12px; color: var(--muted); }
+.fkeys { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.fkeys button { padding: 6px 4px; font-weight: 600; }
+.fkeys button span { color: var(--accent); margin-right: 4px; }
+.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 20; }
+.dlg { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 16px; width: min(480px, 100%); display: flex; flex-direction: column; gap: 12px; max-height: 90%; overflow: auto; }
+.dlg h2 { margin: 0; font-size: 15px; text-wrap: balance; }
+.dlg .row { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.dlg textarea { min-height: 160px; font-family: var(--mono); resize: vertical; width: 100%; box-sizing: border-box; }
+.dlg input { width: 100%; box-sizing: border-box; }
+.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); } .primary:hover { background: var(--accent); filter: brightness(1.1); }
+.danger { background: var(--mark); color: #fff; border-color: var(--mark); } .danger:hover { background: var(--mark); filter: brightness(1.1); }
+.prog { height: 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+.prog > div { height: 100%; width: 0; background: var(--ok); }
+.muted { color: var(--muted); } .mono { font-family: var(--mono); font-size: 12px; }
+.toast { position: fixed; left: 50%; bottom: 56px; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 6px 12px; border-radius: 3px; z-index: 30; font-size: 12px; }
+.panel.over { outline: 2px dashed var(--accent); outline-offset: -3px; }
+tr.dropdir td.name { background: var(--sel); }
+.ctx { position: fixed; z-index: 25; min-width: 210px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 4px; box-shadow: 0 6px 20px rgba(0,0,0,.25); display: flex; flex-direction: column; }
+.ctx button { text-align: left; border: 0; background: transparent; padding: 6px 10px; border-radius: 3px; }
+.ctx button:hover, .ctx button:focus-visible { background: var(--sel); }
+.ctx hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; width: 100%; }
+.ctx .k { float: right; color: var(--muted); margin-left: 16px; }
+.tag.local { color: var(--ok); border-color: var(--ok); }
+@media (max-width: 720px) { .panels { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } .fkeys { grid-template-columns: repeat(3, 1fr); } td.date { display: none; } th.date { display: none; } }
+@media (prefers-reduced-motion: no-preference) { .prog > div { transition: width .12s linear; } }
+</style>
+
+<div id="app">
+  <div class="bar">
+    <span class="title">S3 Commander</span>
+    <span class="tag">Demo: sample data, nothing leaves this page</span>
+    <label class="muted" for="profile">Profile</label>
+    <select id="profile"></select>
+    <button id="lock" type="button">Lock</button>
+  </div>
+  <div class="panels" id="panels"></div>
+  <div class="fkeys" id="fkeys"></div>
+  <div class="muted" style="font-size:12px">Right-click a row for actions. Drag rows between panels (Local to server uploads, server to Local downloads, Shift moves), drop on a folder row to go inside it, or drop files from your computer onto a server panel. Keys: Tab, Up/Down, Enter, Backspace, Space mark, F2 rename, F3 to F8.</div>
+</div>
+<div id="layer"></div>
+
+<script>
+(function () {
+  var KB = 1024, MB = KB * KB;
+  function F(size, date, text) { return { t: 'f', size: size, date: date, text: text }; }
+  function D(ch) { return { t: 'd', c: ch || {} }; }
+  function dataDev() { return {
+    photos: D({ '2026': D({ 'trip-hue': D({ 'IMG_0412.jpg': F(4.2*MB, '2026-10-02 09:14'), 'IMG_0413.jpg': F(3.9*MB, '2026-10-02 09:15'), 'notes.txt': F(212, '2026-10-02 21:40', 'Hue: citadel at 8am, then the river market.') }), 'family': D({ 'dinner.mp4': F(212*MB, '2026-09-14 19:02') }) }), 'README.md': F(540, '2026-01-04 10:00', '# photos\nOriginals, organised by year.') }),
+    backups: D({ 'db': D({ 'dump-2026-11-24.sql.gz': F(88*MB, '2026-11-24 02:00'), 'dump-2026-11-25.sql.gz': F(89*MB, '2026-11-25 02:00') }), 'config.json': F(1400, '2026-11-01 08:30', '{\n  "retention_days": 30\n}'), 'archive.tar': F(2400*MB, '2026-06-30 23:59') }),
+    logs: D({ 'app': D({ 'app-2026-11-25.log': F(14*MB, '2026-11-25 23:59'), 'app-2026-11-26.log': F(3*MB, '2026-11-26 08:00') }), 'access.log': F(51*MB, '2026-11-26 08:00') })
+  }; }
+  function localData() { return D({ 'report-q3.pdf': F(1.8*MB, '2026-10-30 16:20'), 'notes.txt': F(120, '2026-11-22 09:10', 'local notes'), 'site-assets': D({ 'logo.png': F(86*KB, '2026-08-12 11:00'), 'hero.jpg': F(2.4*MB, '2026-08-12 11:05') }) }); }
+  function isLocal(pn) { return pn.b.indexOf('Local') === 0; }
+  function dataLocal() { return { scratch: D({ 'todo.txt': F(64, '2026-11-20 12:00', 'upload test files\nrename bucket') , 'tmp': D({}) }) }; }
+  var profiles = { 'dev-minio': dataDev, 'local-minio': dataLocal }, store, cur;
+  var panels = [ { b: '', p: [], i: 0, m: {} }, { b: '', p: [], i: 0, m: {} } ], act = 0;
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function fmt(n) { return n < KB ? n + ' B' : n < MB ? (n / KB).toFixed(1) + ' KB' : n < 1024 * MB ? (n / MB).toFixed(1) + ' MB' : (n / MB / 1024).toFixed(2) + ' GB'; }
+  function dirOf(pn) { var n = store[pn.b]; for (var k = 0; k < pn.p.length; k++) n = n.c[pn.p[k]]; return n; }
+  function rows(pn) {
+    var d = dirOf(pn), names = Object.keys(d.c), r = [];
+    if (pn.p.length) r.push({ n: '..', up: true });
+    names.filter(function (n) { return d.c[n].t === 'd'; }).sort().forEach(function (n) { r.push({ n: n, node: d.c[n] }); });
+    names.filter(function (n) { return d.c[n].t === 'f'; }).sort().forEach(function (n) { r.push({ n: n, node: d.c[n] }); });
+    return r;
+  }
+  function size(n) { return n.t === 'f' ? n.size : Object.keys(n.c).reduce(function (a, k) { return a + size(n.c[k]); }, 0); }
+  function clone(n) { return JSON.parse(JSON.stringify(n)); }
+  function toast(t) { var e = document.createElement('div'); e.className = 'toast'; e.textContent = t; document.body.appendChild(e); setTimeout(function () { e.remove(); }, 1800); }
+
+  function render() {
+    var host = $('panels'); host.innerHTML = '';
+    panels.forEach(function (pn, idx) {
+      var r = rows(pn); pn.i = Math.min(pn.i, r.length - 1); if (pn.i < 0) pn.i = 0;
+      var el = document.createElement('div'); el.className = 'panel' + (idx === act ? ' active' : ''); el.tabIndex = 0;
+      var opts = Object.keys(store).map(function (b) { return '<option' + (b === pn.b ? ' selected' : '') + '>' + esc(b) + '</option>'; }).join('');
+      var body = r.map(function (x, j) {
+        var cls = (x.node && x.node.t === 'd' || x.up ? 'dir ' : '') + (j === pn.i ? 'sel ' : '') + (pn.m[x.n] ? 'mark' : '');
+        var dot = x.n.lastIndexOf('.'), nm = x.up || (x.node && x.node.t === 'd') || dot < 1 ? x.n : x.n.slice(0, dot), ext = x.up || (x.node && x.node.t === 'd') || dot < 1 ? '' : x.n.slice(dot + 1);
+        return '<tr draggable="' + (x.up ? 'false' : 'true') + '" class="' + cls + '" data-j="' + j + '"><td class="name">' + (x.up ? '[..]' : x.node.t === 'd' ? '[' + esc(x.n) + ']' : esc(nm)) + '</td><td>' + esc(ext) + '</td><td class="num">' + (x.up ? '' : x.node.t === 'd' ? '&lt;DIR&gt;' : fmt(x.node.size)) + '</td><td class="date">' + (x.node && x.node.t === 'f' ? x.node.date : '') + '</td></tr>';
+      }).join('');
+      var marked = Object.keys(pn.m).filter(function (k) { return pn.m[k]; }), mSize = 0, d = dirOf(pn);
+      marked.forEach(function (k) { if (d.c[k]) mSize += size(d.c[k]); });
+      el.innerHTML = '<div class="phead"><span class="tag' + (isLocal(pn) ? ' local">LOCAL' : '">SERVER') + '</span><select data-b="' + idx + '" aria-label="Bucket">' + opts + '</select><span class="path">/' + esc(pn.p.join('/')) + '</span></div>' +
+        '<div class="list"><table><thead><tr><th>Name</th><th>Ext</th><th class="num">Size</th><th class="date">Date</th></tr></thead><tbody>' + body + '</tbody></table></div>' +
+        '<div class="pfoot">' + (marked.length ? fmt(mSize) + ' in ' + marked.length + ' marked' : Object.keys(d.c).length + ' item(s)') + '</div>';
+      el.addEventListener('mousedown', function () { act = idx; });
+      el.addEventListener('click', function (e) { var tr = e.target.closest('tr[data-j]'); if (tr) { act = idx; pn.i = +tr.dataset.j; render(); } });
+      el.addEventListener('dblclick', function (e) { if (e.target.closest('tr[data-j]')) open(pn); });
+      el.addEventListener('dragstart', function (e) {
+        var tr = e.target.closest('tr[data-j]'); if (!tr) return; act = idx; pn.i = +tr.dataset.j;
+        var r = rows(pn)[pn.i]; if (!r || r.up) return e.preventDefault();
+        if (!pn.m[r.n]) pn.m = {}; drag = { si: idx, items: targets(pn) }; e.dataTransfer.effectAllowed = 'copyMove'; e.dataTransfer.setData('text/plain', r.n);
+      });
+      el.addEventListener('dragend', function () { drag = null; render(); });
+      el.addEventListener('dragover', function (e) {
+        e.preventDefault(); el.classList.add('over');
+        var olds = el.querySelectorAll('tr.dropdir'); for (var q = 0; q < olds.length; q++) olds[q].classList.remove('dropdir');
+        var tr = e.target.closest('tr.dir[data-j]'); if (tr && rows(pn)[+tr.dataset.j] && !rows(pn)[+tr.dataset.j].up) tr.classList.add('dropdir');
+      });
+      el.addEventListener('dragleave', function (e) { if (!el.contains(e.relatedTarget)) el.classList.remove('over'); });
+      el.addEventListener('drop', function (e) {
+        e.preventDefault(); el.classList.remove('over');
+        var tr = e.target.closest('tr[data-j]'), row = tr ? rows(pn)[+tr.dataset.j] : null, sub = row && !row.up && row.node.t === 'd' ? row.n : null;
+        if (e.dataTransfer.files && e.dataTransfer.files.length && !drag) {
+          var items = Array.prototype.map.call(e.dataTransfer.files, function (f) { return { n: f.name, node: F(f.size, '2026-11-26 ' + new Date().toTimeString().slice(0, 5)) }; });
+          return transfer(false, -1, idx, items, sub);
+        }
+        if (!drag) return;
+        var same = drag.si === idx; if (same && (!sub || drag.items.some(function (x) { return x.n === sub; }))) return;
+        transfer(same || e.shiftKey, drag.si, idx, drag.items, sub); drag = null;
+      });
+      el.addEventListener('contextmenu', function (e) {
+        e.preventDefault(); act = idx; var tr = e.target.closest('tr[data-j]');
+        if (tr) { pn.i = +tr.dataset.j; var r = rows(pn)[pn.i]; if (r && !r.up && !pn.m[r.n]) pn.m = {}; }
+        render(); ctx(e.clientX, e.clientY, !!tr);
+      });
+      el.querySelector('select').addEventListener('change', function (e) { pn.b = e.target.value; pn.p = []; pn.i = 0; pn.m = {}; act = idx; render(); });
+      host.appendChild(el);
+    });
+    var act_el = host.children[act].querySelector('tr.sel'); if (act_el) act_el.scrollIntoView({ block: 'nearest' });
+  }
+  function open(pn) { var r = rows(pn)[pn.i]; if (!r) return; if (r.up) { pn.p.pop(); pn.i = 0; pn.m = {}; } else if (r.node.t === 'd') { pn.p.push(r.n); pn.i = 0; pn.m = {}; } else return view(false); render(); }
+  function targets(pn) { var r = rows(pn), m = r.filter(function (x) { return pn.m[x.n]; }); return m.length ? m : r[pn.i] && !r[pn.i].up ? [r[pn.i]] : []; }
+
+  function dlg(html, wire) { var l = $('layer'); l.innerHTML = '<div class="scrim"><div class="dlg" role="dialog" aria-modal="true">' + html + '</div></div>'; wire && wire(l); var f = l.querySelector('input,textarea,button'); f && f.focus(); }
+  function close() { $('layer').innerHTML = ''; }
+  function view(edit) {
+    var pn = panels[act], r = rows(pn)[pn.i]; if (!r || r.up || r.node.t !== 'f') return toast('Select a file first');
+    var txt = r.node.text;
+    if (txt === undefined) return dlg('<h2>' + esc(r.n) + '</h2><div class="muted">Binary or large file (' + fmt(r.node.size) + '). The real app streams it to a temp file and opens it with the system viewer.</div><div class="row"><button id="x">Close</button></div>', function (l) { l.querySelector('#x').onclick = close; });
+    dlg('<h2>' + (edit ? 'Edit ' : 'View ') + esc(r.n) + '</h2>' + (edit ? '<textarea id="t"></textarea><div class="muted">Saving uploads the file again, replacing the object.</div>' : '<pre class="mono" style="margin:0;white-space:pre-wrap">' + esc(txt) + '</pre>') + '<div class="row"><button id="x">' + (edit ? 'Cancel' : 'Close') + '</button>' + (edit ? '<button id="s" class="primary">Save</button>' : '') + '</div>', function (l) {
+      l.querySelector('#x').onclick = close;
+      if (edit) { l.querySelector('#t').value = txt; l.querySelector('#s').onclick = function () { r.node.text = l.querySelector('#t').value; r.node.size = r.node.text.length; r.node.date = '2026-11-26 ' + new Date().toTimeString().slice(0, 5); close(); render(); toast('Saved ' + r.n); }; }
+    });
+  }
+  function mkdir() {
+    var pn = panels[act];
+    dlg('<h2>New folder</h2><input id="n" placeholder="folder name" aria-label="Folder name"><div class="row"><button id="x">Cancel</button><button id="o" class="primary">Create</button></div>', function (l) {
+      function go() { var v = l.querySelector('#n').value.trim().replace(/\//g, ''); if (!v) return; var d = dirOf(pn); if (d.c[v]) return toast('Already exists'); d.c[v] = D({}); close(); render(); }
+      l.querySelector('#x').onclick = close; l.querySelector('#o').onclick = go; l.querySelector('#n').onkeydown = function (e) { if (e.key === 'Enter') go(); };
+    });
+  }
+  function del() {
+    var pn = panels[act], t = targets(pn); if (!t.length) return toast('Nothing selected');
+    dlg('<h2>Delete ' + t.length + ' item(s)?</h2><div class="mono muted">' + t.slice(0, 6).map(function (x) { return esc(x.n); }).join('<br>') + (t.length > 6 ? '<br>…' : '') + '</div><div class="row"><button id="x">Cancel</button><button id="o" class="danger">Delete</button></div>', function (l) {
+      l.querySelector('#x').onclick = close;
+      l.querySelector('#o').onclick = function () { var d = dirOf(pn); t.forEach(function (x) { delete d.c[x.n]; }); pn.m = {}; close(); render(); toast('Deleted ' + t.length); };
+    });
+  }
+  var timer, drag = null;
+  function verb(si, di, move) { var s = si < 0 ? true : isLocal(panels[si]), d = isLocal(panels[di]); return s && !d ? 'Upload' : !s && d ? 'Download' : move ? 'Move' : 'Copy'; }
+  function xfer(move) { var t = targets(panels[act]); transfer(move, act, 1 - act, t); }
+  function transfer(move, si, di, t, sub) {
+    var src = si < 0 ? null : panels[si], dst = panels[di]; if (!t.length) return toast('Nothing selected');
+    var total = Math.max(1, t.reduce(function (a, x) { return a + size(x.node); }, 0)), label = verb(si, di, move), done = 0, step = Math.max(total / 25, 1);    dlg('<h2>' + label + ' ' + t.length + ' item(s) to ' + esc(dst.b) + '/' + esc(dst.p.concat(sub || []).join('/')) + '</h2><div class="prog"><div id="b"></div></div><div class="mono muted" id="s"></div><div class="muted">Large files go as multipart parts, so progress and Cancel work per part.</div><div class="row"><button id="x">Cancel</button></div>', function (l) {
+      var b = l.querySelector('#b'), s = l.querySelector('#s');
+      l.querySelector('#x').onclick = function () { clearInterval(timer); close(); toast(label + ' cancelled, nothing changed'); };
+      timer = setInterval(function () {
+        done = Math.min(total, done + step); b.style.width = (done / total * 100) + '%'; s.textContent = fmt(done) + ' / ' + fmt(total);
+        if (done >= total) { clearInterval(timer); var d = dirOf(dst); if (sub) d = d.c[sub]; var sd = src ? dirOf(src) : null; t.forEach(function (x) { d.c[x.n] = clone(x.node); if (move && sd) delete sd.c[x.n]; }); if (src) src.m = {}; close(); render(); toast(label + ' done'); }
+      }, 90);
+    });
+  }
+  function rename() {
+    var pn = panels[act], r = rows(pn)[pn.i]; if (!r || r.up) return toast('Select one item');
+    dlg('<h2>Rename ' + esc(r.n) + '</h2><input id="n" aria-label="New name"><div class="muted">On a server, rename is copy then delete of the key (every key under a folder).</div><div class="row"><button id="x">Cancel</button><button id="o" class="primary">Rename</button></div>', function (l) {
+      var inp = l.querySelector('#n'); inp.value = r.n;
+      function go() { var v = inp.value.trim().replace(/\//g, ''), d = dirOf(pn); if (!v || v === r.n) return close(); if (d.c[v]) return toast('Already exists'); d.c[v] = d.c[r.n]; delete d.c[r.n]; pn.m = {}; close(); render(); }
+      l.querySelector('#x').onclick = close; l.querySelector('#o').onclick = go; inp.onkeydown = function (e) { if (e.key === 'Enter') go(); };
+    });
+  }
+  function ctxClose() { var c = $('ctx'); if (c) c.remove(); }
+  function ctx(x, y, onRow) {
+    ctxClose(); var pn = panels[act], r = rows(pn)[pn.i], isF = r && !r.up && r.node.t === 'f', isD = r && !r.up && r.node.t === 'd', has = onRow && r && !r.up;
+    var ov = verb(act, 1 - act, false), mv = verb(act, 1 - act, true);
+    var it = [];
+    if (has) it.push(['Open', function () { open(pn); }, 'Enter'], isF ? ['View', function () { view(false); }, 'F3'] : null, isF ? ['Edit', function () { view(true); }, 'F4'] : null, 0,
+      [ov + ' to other panel', function () { xfer(false); }, 'F5'], [mv === 'Move' ? 'Move to other panel' : mv + ' to other panel (move)', function () { xfer(true); }, 'F6'], ['Rename', rename, 'F2'], ['Delete', del, 'F8'], 0);
+    it.push(['New folder', mkdir, 'F7']);
+    var c = document.createElement('div'); c.id = 'ctx'; c.className = 'ctx'; c.setAttribute('role', 'menu');
+    it.filter(function (v) { return v !== null; }).forEach(function (v) {
+      if (v === 0) return c.appendChild(document.createElement('hr'));
+      var b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.innerHTML = esc(v[0]) + '<span class="k">' + v[2] + '</span>';
+      b.onclick = function () { ctxClose(); v[1](); }; c.appendChild(b);
+    });
+    document.body.appendChild(c);
+    c.style.left = Math.max(4, Math.min(x, window.innerWidth - c.offsetWidth - 4)) + 'px'; c.style.top = Math.max(4, Math.min(y, window.innerHeight - c.offsetHeight - 4)) + 'px';
+    c.querySelector('button').focus();
+  }
+  document.addEventListener('mousedown', function (e) { if (!e.target.closest('#ctx')) ctxClose(); });
+  window.addEventListener('blur', ctxClose);
+  function lock() {
+    dlg('<h2>S3 Commander is locked</h2><div class="muted">Enter the master key. In this demo any text unlocks it.</div><input id="k" type="password" aria-label="Master key"><div class="row"><button id="o" class="primary">Unlock</button></div>', function (l) {
+      function go() { if (l.querySelector('#k').value) { close(); } else toast('Enter a master key'); }
+      l.querySelector('#o').onclick = go; l.querySelector('#k').onkeydown = function (e) { if (e.key === 'Enter') go(); };
+    });
+  }
+  function load(name) { cur = name; store = profiles[name](); store['Local: Documents'] = localData(); var bs = Object.keys(store); panels.forEach(function (pn, i) { pn.b = i === 0 ? bs[0] : 'Local: Documents'; pn.p = []; pn.i = 0; pn.m = {}; }); act = 0; render(); }
+
+  var fk = [['F3', 'View', function () { view(false); }], ['F4', 'Edit', function () { view(true); }], ['F5', 'Copy', function () { xfer(false); }], ['F6', 'Move', function () { xfer(true); }], ['F7', 'New Folder', mkdir], ['F8', 'Delete', del]];
+  $('fkeys').innerHTML = fk.map(function (k, i) { return '<button type="button" data-k="' + i + '"><span>' + k[0] + '</span>' + k[1] + '</button>'; }).join('');
+  $('fkeys').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) fk[+b.dataset.k][2](); });
+  $('profile').innerHTML = Object.keys(profiles).map(function (n) { return '<option>' + n + '</option>'; }).join('');
+  $('profile').addEventListener('change', function (e) { load(e.target.value); });
+  $('lock').addEventListener('click', lock);
+  document.addEventListener('keydown', function (e) {
+    if ($('layer').firstChild) { if (e.key === 'Escape' && !$('layer').querySelector('#k')) { clearInterval(timer); close(); } return; }
+    if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+    var pn = panels[act], n = rows(pn).length, handled = true;
+    if (e.key === 'Tab') act = 1 - act;
+    else if (e.key === 'ArrowDown') pn.i = Math.min(n - 1, pn.i + 1);
+    else if (e.key === 'ArrowUp') pn.i = Math.max(0, pn.i - 1);
+    else if (e.key === 'Enter') return open(pn);
+    else if (e.key === 'Backspace') { if (pn.p.length) { pn.p.pop(); pn.i = 0; pn.m = {}; } }
+    else if (e.key === ' ' || e.key === 'Insert') { var r = rows(pn)[pn.i]; if (r && !r.up) pn.m[r.n] = !pn.m[r.n]; pn.i = Math.min(n - 1, pn.i + 1); }
+    else if (e.key === 'F2') rename();
+    else if (e.key === 'Escape') ctxClose();
+    else if (/^F[3-8]$/.test(e.key)) { fk[+e.key[1] - 3][2](); }
+    else handled = false;
+    if (handled) { e.preventDefault(); render(); }
+  });
+  load('dev-minio');
+})();
+</script>

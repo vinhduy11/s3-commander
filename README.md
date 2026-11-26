@@ -1,6 +1,6 @@
 # s3-commander
 
-Tauri desktop app to manage files and directories on a MinIO server (S3-compatible API) with a Total Commander-style dual-pane UI. Multiple profiles, secrets encrypted via keychain, unlocked with a master key. See `CLAUDE.md` and `docs/claude/` for the design.
+Tauri desktop app to manage files and directories on a MinIO server (S3-compatible API) with a Total Commander-style dual-pane UI. Multiple profiles, secrets encrypted in an app vault, unlocked with a master key. See `CLAUDE.md` and `docs/claude/` for the design.
 
 Status: multi-profile support with a master-key encrypted vault; no S3 features yet.
 
@@ -21,6 +21,8 @@ cargo test             # run inside src-tauri/; vault unit tests (local, no netw
 ├── CLAUDE.md             # index for Claude Code, points into docs/claude/
 ├── docs/claude/          # topic reference files (architect, rule, safety, commands)
 ├── docs/changelog/       # dated implementation reports
+├── docs/implement/       # implementation plans (roadmap for the S3 steps)
+├── docs/artifact/        # offline copy of published artifacts (UI demo)
 ├── index.html            # Vite entry
 ├── package.json          # frontend deps and npm scripts
 ├── vite.config.ts        # Vite config
