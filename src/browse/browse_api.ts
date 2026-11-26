@@ -10,7 +10,7 @@ export type Profile = {
   endpoint: string;
   access_key: string;
   region: string;
-};
+} & Partial<Record<"multipart_threshold" | "multipart_chunksize" | "max_concurrent_requests" | "addressing_style", string>>;
 
 type S3Entry = { name: string; is_dir: boolean; size: number; modified: number | null };
 type DirPage = { entries: S3Entry[]; next_token: string | null };

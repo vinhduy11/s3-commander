@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Per-profile transfer settings and AWS CLI import</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:860px;margin:2rem auto;padding:0 1rem;color:#1b1d24}code{background:#eef;padding:1px 4px;border-radius:3px}h2{border-bottom:1px solid #ddd;padding-bottom:4px}</style></head><body>
+<h1>Per-profile transfer settings and Import from AWS CLI</h1>
+<h2>Specs</h2>
+<p>Roadmap step 4, settings part only: optional profile fields <code>multipart_threshold</code>, <code>multipart_chunksize</code>, <code>max_concurrent_requests</code>, <code>addressing_style</code> with old vaults still loading; AWS-CLI-style size parsing; rules (chunk size &ge; 5 MiB, threshold &ge; chunk size, concurrency 1..256, style path/virtual/auto) validated by Rust and mirrored in TypeScript; <code>addressing_style</code> effective in the S3 client; a collapsed "Transfer settings" form section; an "Import from AWS CLI" button reading only non-secret keys from the AWS config file on click. Multipart transfers themselves are out of scope.</p>
+<h2>Actions</h2>
+<ul>
+<li>New <code>transfer_settings.rs</code>: <code>parse_size</code>, <code>validate_transfer</code>, <code>effective_transfer_settings</code>, <code>AddressingStyle</code>, flattened <code>TransferFields</code> in <code>Profile</code>, <code>ProfileInput</code>, <code>ProfileSummary</code>.</li>
+<li>New <code>aws_config.rs</code> and commands <code>aws_config_list_profiles</code>, <code>aws_config_read_profile</code> (registered in <code>lib.rs</code>).</li>
+<li><code>profile_rules.rs</code> calls <code>validate_transfer</code>; <code>s3.rs</code> uses the addressing style; <code>validate_profile.ts</code>, <code>aws_import_api.ts</code>, <code>profile_form.tsx</code>, <code>styles.css</code> updated; 27 shared table cases added.</li>
+<li>Tests: Rust 134 pass (size table, defaults, old-shape vault JSON, rules, parser, URL per style); vitest 258 pass; <code>npm run build</code> and <code>cargo check</code> clean.</li>
+</ul>
+<p><b>Measured:</b> test and build outputs above; Chromium screenshots against a mocked <code>__TAURI_INTERNALS__</code> (light and dark). <b>Inferred, not exercised:</b> behaviour against a real MinIO, a real <code>~/.aws/config</code>, the Tauri window and WebKit; virtual-hosted URL shape for a host without a DNS wildcard (only the request URL was captured).</p>
+<h2>Tradeoffs</h2>
+<ul>
+<li>Fields stored as normalized strings, not bytes: the form shows what was typed and a bad import stays visible; cost: parse at use time (done once, in <code>effective_transfer_settings</code>).</li>
+<li>Decimals (<code>1.5MB</code>) rejected, like the AWS CLI; suffixes KB..TB only, <code>KiB</code> rejected.</li>
+<li>When threshold is unset and chunk size exceeds the default 8 MiB threshold the error lands on the chunk size field (the one the user filled).</li>
+<li><code>auto</code> behaves like <code>virtual</code> (SDK default); the SDK itself falls back to path style for IP hosts.</li>
+<li>Import is a line-based INI reader, not a full AWS config parser: no inline comments, no <code>include</code>, no <code>source_profile</code>.</li>
+<li>No upper bound on chunk size (S3 max 5 GiB) since the spec lists none.</li>
+</ul>
+</body></html>

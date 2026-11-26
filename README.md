@@ -36,10 +36,11 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 │   ├── screens/
 │   │   ├── master_key_screen.tsx  # create / unlock the vault
 │   │   ├── profiles_screen.tsx    # add, edit, delete, test, duplicate profiles; shows Rust's per-field save errors
-│   │   ├── profile_form.tsx       # profile form: inline per-field errors, Save disabled while invalid, http warning
+│   │   ├── profile_form.tsx       # profile form: inline per-field errors, Save disabled while invalid, http warning, collapsible Transfer settings, Import from AWS CLI
 │   │   └── browser_screen.tsx     # top bar (profile switcher, Lock), two panels, F-key bar (F2, F5-F8), operation dialogs
 │   ├── profile/
 │   │   ├── validate_profile.ts    # profile rules (mirror of profile_rules.rs) for instant feedback
+│   │   ├── aws_import_api.ts      # typed wrappers over aws_config_list_profiles / aws_config_read_profile
 │   │   └── validation_cases.json  # shared test table, read by both the vitest and the Rust tests
 │   └── browse/
 │       ├── browse_store.ts        # Zustand store: one slice per panel, S3 reset on profile switch / lock
@@ -73,6 +74,8 @@ npm test               # vitest: panel store, navigation helpers, operation targ
         ├── lib.rs        # Tauri builder, vault + client-cache state, thin commands (incl. transfer_preview, transfer_execute, items_delete, folder_create, item_rename)
         ├── app_error.rs  # AppError: the one error type the UI sees (serialized as a message); ProfileSaveError with per-field errors
         ├── profile_rules.rs # the one place that validates and normalizes a profile input (per-field errors); no Tauri dependency
+        ├── transfer_settings.rs # per-profile transfer settings: size parser, validation, effective_transfer_settings (AWS CLI defaults)
+        ├── aws_config.rs # read-only parser of ~/.aws/config (or AWS_CONFIG_FILE): profile names and non-secret settings only; no Tauri dependency
         ├── s3.rs         # aws-sdk-s3 client from a profile, list_buckets, list_dir, error mapping; no Tauri dependency
         ├── local.rs      # local_list_dir over std::fs; no Tauri dependency
         │                     # (also local_stat_paths: folder/file, parent and name of OS-dropped paths)

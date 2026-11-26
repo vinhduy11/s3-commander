@@ -1,10 +1,12 @@
 pub mod app_error;
+pub mod aws_config;
 pub mod local;
 pub mod profile_rules;
 pub mod local_ops;
 pub mod s3;
 pub mod s3_ops;
 pub mod transfer_plan;
+pub mod transfer_settings;
 pub mod transfer_run;
 pub mod vault;
 
@@ -153,6 +155,20 @@ async fn s3_list_dir(
     s3::list_dir(&client, &bucket, &prefix, token).await
 }
 
+/// Names of the profiles in the AWS CLI config file. Runs only when the user clicks Import.
+#[tauri::command]
+fn aws_config_list_profiles() -> Result<Vec<String>, AppError> {
+    let path = aws_config::config_path().ok_or_else(|| AppError::Local("AWS config file not found.".into()))?;
+    aws_config::list_profiles_at(&path).map_err(AppError::Local)
+}
+
+/// The non-secret settings of one AWS CLI profile (never keys, secrets or tokens).
+#[tauri::command]
+fn aws_config_read_profile(name: String) -> Result<aws_config::AwsProfileSettings, AppError> {
+    let path = aws_config::config_path().ok_or_else(|| AppError::Local("AWS config file not found.".into()))?;
+    aws_config::read_profile_at(&path, &name).map_err(AppError::Local)
+}
+
 #[tauri::command]
 async fn local_list_dir(path: String) -> Result<local::LocalListing, AppError> {
     local::list_dir(&local::start_dir(&path))
@@ -267,7 +283,9 @@ pub fn run() {
             transfer_execute,
             items_delete,
             folder_create,
-            item_rename
+            item_rename,
+            aws_config_list_profiles,
+            aws_config_read_profile
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

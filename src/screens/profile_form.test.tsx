@@ -3,6 +3,9 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProfileForm } from "./profile_form";
+import { listAwsProfiles, readAwsProfile } from "../profile/aws_import_api";
+
+vi.mock("../profile/aws_import_api", () => ({ listAwsProfiles: vi.fn(), readAwsProfile: vi.fn() }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -26,6 +29,7 @@ const render = (props: Partial<Parameters<typeof ProfileForm>[0]> = {}) => {
   return { onSubmit, onCancel };
 };
 const input = (label: string) => host.querySelector<HTMLInputElement>(`input[aria-label^="${label}"]`)!;
+const select = (label: string) => host.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`)!;
 const save = () => host.querySelector<HTMLButtonElement>("button[type=submit]")!;
 const type = (label: string, value: string) =>
   act(() => {
@@ -118,7 +122,175 @@ describe("ProfileForm", () => {
 
   it("Cancel calls onCancel", () => {
     const { onCancel } = render();
-    act(() => host.querySelector<HTMLButtonElement>("button[type=button]")!.click());
+    act(() => [...host.querySelectorAll("button")].find((b) => b.textContent === "Cancel")!.click());
     expect(onCancel).toHaveBeenCalled();
   });
 });
+
+describe("Transfer settings section", () => {
+  const toggle = () => host.querySelector<HTMLButtonElement>("button[aria-controls=transfer-settings]")!;
+  const open = () => act(() => toggle().click());
+  const choose = (label: string, value: string) =>
+    act(() => {
+      const el = select(label);
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(el, value);
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+  it("is collapsed by default and opens on click", () => {
+    render();
+    expect(toggle().getAttribute("aria-expanded")).toBe("false");
+    expect(host.querySelector("input[aria-label=\"Multipart threshold\"]")).toBeNull();
+    open();
+    expect(toggle().getAttribute("aria-expanded")).toBe("true");
+    expect(input("Multipart threshold")).not.toBeNull();
+  });
+
+  it("shows the defaults as placeholders", () => {
+    render();
+    open();
+    expect(input("Multipart threshold").placeholder).toBe("8MB");
+    expect(input("Multipart chunk size").placeholder).toBe("8MB");
+    expect(input("Max concurrent requests").placeholder).toBe("10");
+    expect(select("Addressing style").options[0].textContent).toMatch(/default.*path/i);
+  });
+
+  it("shows inline per-field errors and blocks Save", () => {
+    render();
+    fillValid();
+    open();
+    type("Multipart chunk size", "1MB");
+    blur("Multipart chunk size");
+    type("Max concurrent requests", "0");
+    blur("Max concurrent requests");
+    expect(errorOf("Multipart chunk size")).toMatch(/5 MB|5 MiB/);
+    expect(errorOf("Max concurrent requests")).toMatch(/1 and 256/);
+    expect(errorOf("Multipart threshold")).toBe("");
+    expect(save().disabled).toBe(true);
+  });
+
+  it("flags threshold smaller than chunk size", () => {
+    render();
+    open();
+    type("Multipart threshold", "6MB");
+    type("Multipart chunk size", "7MB");
+    blur("Multipart threshold");
+    expect(errorOf("Multipart threshold")).toMatch(/chunk size/i);
+  });
+
+  it("opens itself when a server error belongs to one of its fields", () => {
+    render({ serverErrors: { max_concurrent_requests: "Server says no." } });
+    expect(toggle().getAttribute("aria-expanded")).toBe("true");
+    expect(errorOf("Max concurrent requests")).toBe("Server says no.");
+  });
+
+  it("submits normalized transfer values", () => {
+    const { onSubmit } = render();
+    fillValid();
+    open();
+    type("Multipart threshold", "100 mb");
+    type("Max concurrent requests", "20");
+    choose("Addressing style", "virtual");
+    act(() => save().click());
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ multipart_threshold: "100MB", max_concurrent_requests: "20", addressing_style: "virtual" });
+  });
+
+  it("starts with the stored values and expands when any is set", () => {
+    render({ initial: { ...EMPTY, id: "p1", name: "Prod", endpoint: "https://m.example.com", access_key: "ak", multipart_chunksize: "16MB" } });
+    expect(toggle().getAttribute("aria-expanded")).toBe("true");
+    expect(input("Multipart chunk size").value).toBe("16MB");
+  });
+});
+
+describe("Import from AWS CLI", () => {
+  const importButton = () => [...host.querySelectorAll("button")].find((b) => b.textContent === "Import from AWS CLI")!;
+  const flush = () => act(async () => { await Promise.resolve(); });
+  const names = () => [...host.querySelectorAll("[data-testid=aws-profile-list] button")].map((b) => b.textContent);
+  const pick = (name: string) => act(async () => { [...host.querySelectorAll<HTMLButtonElement>("[data-testid=aws-profile-list] button")].find((b) => b.textContent === name)!.click(); });
+
+  beforeEach(() => {
+    vi.mocked(listAwsProfiles).mockReset();
+    vi.mocked(readAwsProfile).mockReset();
+  });
+
+  it("does nothing until the button is clicked", () => {
+    render();
+    expect(listAwsProfiles).not.toHaveBeenCalled();
+    expect(readAwsProfile).not.toHaveBeenCalled();
+  });
+
+  it("lists the profile names and fills the form as an editable preview", async () => {
+    vi.mocked(listAwsProfiles).mockResolvedValue(["default", "lab"]);
+    vi.mocked(readAwsProfile).mockResolvedValue({
+      multipart_threshold: "64MB", multipart_chunksize: "16MB", max_concurrent_requests: "20", addressing_style: "virtual",
+      region: "eu-test-1", endpoint_url: "http://lab.example:9000",
+    });
+    const { onSubmit } = render();
+    act(() => importButton().click());
+    await flush();
+    expect(names()).toEqual(["default", "lab"]);
+    await pick("lab");
+    expect(readAwsProfile).toHaveBeenCalledWith("lab");
+    expect(input("Endpoint URL").value).toBe("http://lab.example:9000");
+    expect(input("Region").value).toBe("eu-test-1");
+    expect(input("Multipart threshold").value).toBe("64MB");
+    expect(select("Addressing style").value).toBe("virtual");
+    expect(host.querySelector("[data-testid=aws-profile-list]")).toBeNull();
+    // preview is editable and nothing was saved
+    expect(onSubmit).not.toHaveBeenCalled();
+    type("Multipart threshold", "32MB");
+    expect(input("Multipart threshold").value).toBe("32MB");
+  });
+
+  it("leaves fields untouched when the profile does not define them", async () => {
+    vi.mocked(listAwsProfiles).mockResolvedValue(["lab"]);
+    vi.mocked(readAwsProfile).mockResolvedValue({ region: "eu-test-1" });
+    render();
+    type("Endpoint URL", "https://keep.example.com");
+    act(() => importButton().click());
+    await flush();
+    await pick("lab");
+    expect(input("Endpoint URL").value).toBe("https://keep.example.com");
+    expect(input("Region").value).toBe("eu-test-1");
+  });
+
+  it("flags a bad imported value instead of accepting it", async () => {
+    vi.mocked(listAwsProfiles).mockResolvedValue(["lab"]);
+    vi.mocked(readAwsProfile).mockResolvedValue({ multipart_chunksize: "1MB", max_concurrent_requests: "many" });
+    render();
+    fillValid();
+    act(() => importButton().click());
+    await flush();
+    await pick("lab");
+    expect(errorOf("Multipart chunk size")).toMatch(/5 MB|5 MiB/);
+    expect(errorOf("Max concurrent requests")).toMatch(/1 and 256/);
+    expect(save().disabled).toBe(true);
+  });
+
+  it("shows an empty state when the file has no profiles", async () => {
+    vi.mocked(listAwsProfiles).mockResolvedValue([]);
+    render();
+    act(() => importButton().click());
+    await flush();
+    expect(host.textContent).toMatch(/no profiles found/i);
+  });
+
+  it("shows the message when the file is missing", async () => {
+    vi.mocked(listAwsProfiles).mockRejectedValue("AWS config file not found.");
+    render();
+    act(() => importButton().click());
+    await flush();
+    expect(host.querySelector("[data-testid=aws-import-message]")?.textContent).toBe("AWS config file not found.");
+  });
+
+  it("shows the message when the profile cannot be read", async () => {
+    vi.mocked(listAwsProfiles).mockResolvedValue(["lab"]);
+    vi.mocked(readAwsProfile).mockRejectedValue("Profile \"lab\" was not found in the AWS config file.");
+    render();
+    act(() => importButton().click());
+    await flush();
+    await pick("lab");
+    expect(host.querySelector("[data-testid=aws-import-message]")?.textContent).toMatch(/was not found/);
+  });
+});
+

@@ -14,6 +14,7 @@ use rand::RngCore;
 use zeroize::Zeroizing;
 
 use crate::profile_rules::{validate_profile_input, FieldError};
+use crate::transfer_settings::TransferFields;
 
 #[derive(Debug, thiserror::Error)]
 pub enum VaultError {
@@ -50,6 +51,9 @@ pub struct Profile {
     pub access_key: String,
     pub secret_key: String,
     pub region: String,
+    /// Optional transfer settings; absent in vaults written before they existed (defaults apply).
+    #[serde(flatten)]
+    pub transfer: TransferFields,
 }
 
 /// What the frontend receives: no secret key.
@@ -60,6 +64,8 @@ pub struct ProfileSummary {
     pub endpoint: String,
     pub access_key: String,
     pub region: String,
+    #[serde(flatten)]
+    pub transfer: TransferFields,
 }
 
 /// What the frontend sends. Empty `id` = new profile. Empty `secret_key` on an existing
@@ -72,6 +78,8 @@ pub struct ProfileInput {
     pub access_key: String,
     pub secret_key: String,
     pub region: String,
+    #[serde(flatten)]
+    pub transfer: TransferFields,
 }
 
 const FILE_VERSION: u32 = 1;
@@ -211,6 +219,7 @@ impl Vault {
             access_key: clean.access_key,
             secret_key,
             region: clean.region,
+            transfer: clean.transfer,
         };
         let summary = profile.summary();
         let state = self.state_mut()?;
@@ -289,6 +298,7 @@ impl Profile {
             endpoint: self.endpoint.clone(),
             access_key: self.access_key.clone(),
             region: self.region.clone(),
+            transfer: self.transfer.clone(),
         }
     }
 }
@@ -321,6 +331,7 @@ mod tests {
             access_key: "test-access".into(),
             secret_key: "test-secret-value".into(),
             region: String::new(),
+            transfer: TransferFields::default(),
         }
     }
 
@@ -561,5 +572,51 @@ mod tests {
         let mut vault = new_vault(&dir);
         vault.create("m").unwrap();
         assert!(matches!(vault.duplicate_profile("nope"), Err(VaultError::InvalidProfile(_))));
+    }
+
+    #[test]
+    fn profiles_stored_before_transfer_settings_still_load_with_defaults() {
+        let old = r#"[{"id":"a1","name":"Old","endpoint":"http://localhost:9000","access_key":"ak","secret_key":"sk","region":"us-east-1"}]"#;
+        let profiles: Vec<Profile> = serde_json::from_str(old).unwrap();
+        assert_eq!(profiles[0].transfer, TransferFields::default());
+        let eff = crate::transfer_settings::effective_transfer_settings(&profiles[0].transfer);
+        assert_eq!(eff.max_concurrent_requests, 10);
+    }
+
+    #[test]
+    fn transfer_settings_are_saved_normalized_and_come_back_in_the_summary() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut vault = new_vault(&dir);
+        vault.create("master").unwrap();
+        let mut input = sample_input("Dev");
+        input.transfer = TransferFields {
+            multipart_threshold: " 64 mb".into(),
+            multipart_chunksize: "16MB".into(),
+            max_concurrent_requests: "20".into(),
+            addressing_style: "Virtual".into(),
+        };
+        let summary = vault.save_profile(input).unwrap();
+        assert_eq!(summary.transfer.multipart_threshold, "64MB");
+        assert_eq!(summary.transfer.addressing_style, "virtual");
+        vault.lock();
+        vault.unlock("master").unwrap();
+        assert_eq!(vault.get_profile(&summary.id).unwrap().transfer.max_concurrent_requests, "20");
+        let json = serde_json::to_value(&summary).unwrap();
+        assert_eq!(json["multipart_chunksize"], "16MB");
+        assert!(json.get("secret_key").is_none());
+    }
+
+    #[test]
+    fn bad_transfer_settings_block_the_save_with_per_field_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut vault = new_vault(&dir);
+        vault.create("master").unwrap();
+        let mut input = sample_input("Dev");
+        input.transfer.max_concurrent_requests = "0".into();
+        match vault.save_profile(input).unwrap_err() {
+            VaultError::Validation(errors) => assert_eq!(errors[0].field, "max_concurrent_requests"),
+            other => panic!("{other:?}"),
+        }
+        assert!(vault.list_profiles().unwrap().is_empty());
     }
 }

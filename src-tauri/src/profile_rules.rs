@@ -5,10 +5,11 @@
 
 use serde::Serialize;
 
+use crate::transfer_settings::validate_transfer;
 use crate::vault::{DEFAULT_REGION, ProfileInput};
 
 /// One problem, tied to the form field it belongs to (`name`, `endpoint`, `access_key`,
-/// `secret_key`, `region`).
+/// `secret_key`, `region`, and the four transfer settings).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct FieldError {
     pub field: &'static str,
@@ -74,6 +75,11 @@ pub fn validate_profile_input(
         && clean.region.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
     if !region_ok {
         errors.push(err("region", "Region must be 1 to 32 characters: lowercase letters, digits and hyphens."));
+    }
+
+    match validate_transfer(&input.transfer) {
+        Ok(transfer) => clean.transfer = transfer,
+        Err(found) => errors.extend(found),
     }
 
     if errors.is_empty() { Ok(clean) } else { Err(errors) }
@@ -144,6 +150,8 @@ mod tests {
         access_key: String,
         secret_key: String,
         region: String,
+        #[serde(flatten)]
+        transfer: crate::transfer_settings::TransferFields,
     }
 
     fn input_of(raw: Raw) -> ProfileInput {
@@ -154,6 +162,7 @@ mod tests {
             access_key: raw.access_key,
             secret_key: raw.secret_key,
             region: raw.region,
+            transfer: raw.transfer,
         }
     }
 
@@ -176,6 +185,10 @@ mod tests {
                 let actual = serde_json::json!({
                     "name": clean.name, "endpoint": clean.endpoint,
                     "access_key": clean.access_key, "region": clean.region,
+                    "multipart_threshold": clean.transfer.multipart_threshold,
+                    "multipart_chunksize": clean.transfer.multipart_chunksize,
+                    "max_concurrent_requests": clean.transfer.max_concurrent_requests,
+                    "addressing_style": clean.transfer.addressing_style,
                 });
                 for (key, value) in normalized.as_object().unwrap() {
                     assert_eq!(&actual[key], value, "case: {} field {key}", case.label);

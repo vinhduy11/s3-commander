@@ -13,6 +13,7 @@ use aws_smithy_runtime_api::client::result::DispatchFailure;
 use serde::Serialize;
 
 use crate::app_error::AppError;
+use crate::transfer_settings::{effective_transfer_settings, AddressingStyle};
 use crate::vault::Profile;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -35,13 +36,14 @@ pub struct DirPage {
     pub next_token: Option<String>,
 }
 
-/// Client settings for a MinIO profile: custom endpoint, path-style addressing, static
+/// Client settings for a MinIO profile: custom endpoint, addressing style (path by default; `virtual`
+/// and `auto` use the SDK default, virtual-hosted), static
 /// credentials, checksums only when an operation requires them (older MinIO rejects the default).
 pub fn client_config_builder(profile: &Profile) -> aws_sdk_s3::config::Builder {
     aws_sdk_s3::Config::builder()
         .behavior_version(BehaviorVersion::latest())
         .endpoint_url(&profile.endpoint)
-        .force_path_style(true)
+        .force_path_style(effective_transfer_settings(&profile.transfer).addressing_style == AddressingStyle::Path)
         .region(Region::new(profile.region.clone()))
         .credentials_provider(Credentials::new(
             &profile.access_key,
@@ -211,6 +213,7 @@ mod tests {
             access_key: "test-access".into(),
             secret_key: "test-secret-value".into(),
             region: "eu-test-1".into(),
+            transfer: Default::default(),
         }
     }
 
@@ -244,6 +247,22 @@ mod tests {
         let auth = request.headers().get("authorization").unwrap();
         assert!(auth.contains("Credential=test-access/"), "{auth}");
         assert!(auth.contains("/eu-test-1/s3/aws4_request"), "{auth}");
+    }
+
+    #[tokio::test]
+    async fn addressing_style_changes_the_request_url() {
+        let mut profile = sample_profile();
+        profile.endpoint = "http://minio.test:9000".into();
+        for (style, expected) in [
+            ("", "http://minio.test:9000/bkt/k.txt"),
+            ("path", "http://minio.test:9000/bkt/k.txt"),
+            ("virtual", "http://bkt.minio.test:9000/k.txt"),
+            ("auto", "http://bkt.minio.test:9000/k.txt"),
+        ] {
+            profile.transfer.addressing_style = style.into();
+            let request = captured_request(client_config_builder(&profile), put_object_request).await;
+            assert!(request.uri().starts_with(expected), "{style}: {}", request.uri());
+        }
     }
 
     #[tokio::test]

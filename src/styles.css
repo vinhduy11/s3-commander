@@ -71,8 +71,22 @@ input:focus, select:focus { border-color: var(--accent); outline: 2px solid var(
 .field-warning { color: var(--warn); background: var(--warn-soft); border-radius: var(--radius); padding: 4px var(--sp-2); }
 .notice button { margin-left: var(--sp-3); }
 .form-actions { grid-column: 1 / -1; }
+.form-actions .import-btn { margin-right: auto; }
+.form .full { grid-column: 1 / -1; }
+.transfer { border-top: 1px solid var(--line-soft); padding-top: var(--sp-2); }
+.section-toggle { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: var(--sp-1); cursor: pointer; font-weight: 600; font-size: var(--text-md); color: var(--fg); padding: 2px 0; }
+.section-toggle:hover:not(:disabled), .section-toggle:active:not(:disabled) { background: none; border: 0; }
+.section-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius); }
+.section-toggle .chevron { color: var(--muted); width: 1em; }
+.transfer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2) var(--sp-3); margin-top: var(--sp-2); }
+.transfer-grid label { font-size: var(--text-sm); font-weight: 500; color: var(--muted); }
+.transfer-grid select { width: 100%; }
+.field select[aria-invalid="true"] { border-color: var(--danger); }
+.field-hint { margin: 0; font-size: var(--text-xs); color: var(--muted); }
+.import-panel { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: var(--radius); }
+.aws-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 .form-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; }
-@media (max-width: 720px) { .form { grid-template-columns: 1fr; } }
+@media (max-width: 720px) { .form, .transfer-grid { grid-template-columns: 1fr; } }
 
 /* ---- dual-pane browser ---- */
 .browser { position: fixed; inset: 0; padding: var(--sp-2) var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-2); min-height: 0; text-align: left; }

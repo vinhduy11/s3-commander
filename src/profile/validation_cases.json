@@ -113,7 +113,7 @@
     "Prod"
    ],
    "input": {
-    "name": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+    "name": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9",
     "endpoint": "http://localhost:9000",
     "access_key": "test-access",
     "secret_key": "test-secret-value",
@@ -909,6 +909,494 @@
     "access_key",
     "endpoint",
     "name"
+   ]
+  },
+  {
+   "label": "transfer: all empty is valid",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [],
+   "normalized": {
+    "multipart_threshold": "",
+    "addressing_style": ""
+   }
+  },
+  {
+   "label": "transfer: normalized",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "multipart_threshold": " 100 mb ",
+    "multipart_chunksize": "8MB",
+    "max_concurrent_requests": " 016 ",
+    "addressing_style": " Virtual "
+   },
+   "errors": [],
+   "normalized": {
+    "multipart_threshold": "100MB",
+    "multipart_chunksize": "8MB",
+    "max_concurrent_requests": "16",
+    "addressing_style": "virtual"
+   }
+  },
+  {
+   "label": "transfer: plain bytes ok",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "multipart_chunksize": "8388608"
+   },
+   "errors": [],
+   "normalized": {
+    "multipart_chunksize": "8388608"
+   }
+  },
+  {
+   "label": "transfer: chunksize exactly 5MB ok",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "multipart_chunksize": "5MB",
+    "multipart_threshold": "5MB"
+   },
+   "errors": []
+  },
+  {
+   "label": "transfer: chunksize below 5 MiB",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "multipart_chunksize": "5242879"
+   },
+   "errors": [
+    "multipart_chunksize"
+   ]
+  },
+  {
+   "label": "transfer: chunksize 1MB",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "multipart_chunksize": "1MB"
+   },
+   "errors": [
+    "multipart_chunksize"
+   ]
+  },
+  {
+   "label": "transfer: size text invalid",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "multipart_threshold": "abc",
+    "multipart_chunksize": "1.5MB"
+   },
+   "errors": [
+    "multipart_threshold",
+    "multipart_chunksize"
+   ]
+  },
+  {
+   "label": "transfer: size unknown suffix",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "multipart_threshold": "8MiB"
+   },
+   "errors": [
+    "multipart_threshold"
+   ]
+  },
+  {
+   "label": "transfer: size overflow",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "multipart_threshold": "99999999999TB"
+   },
+   "errors": [
+    "multipart_threshold"
+   ]
+  },
+  {
+   "label": "transfer: threshold below chunksize",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "multipart_threshold": "6MB",
+    "multipart_chunksize": "7MB"
+   },
+   "errors": [
+    "multipart_threshold"
+   ]
+  },
+  {
+   "label": "transfer: threshold equals chunksize ok",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "multipart_threshold": "16MB",
+    "multipart_chunksize": "16MB"
+   },
+   "errors": []
+  },
+  {
+   "label": "transfer: chunksize above default threshold, threshold unset",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "multipart_chunksize": "16MB"
+   },
+   "errors": [
+    "multipart_chunksize"
+   ]
+  },
+  {
+   "label": "transfer: threshold below default chunksize, chunksize unset",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "multipart_threshold": "6MB"
+   },
+   "errors": [
+    "multipart_threshold"
+   ]
+  },
+  {
+   "label": "transfer: concurrency 1 ok",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "max_concurrent_requests": "1"
+   },
+   "errors": []
+  },
+  {
+   "label": "transfer: concurrency 10 ok",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "max_concurrent_requests": "10"
+   },
+   "errors": []
+  },
+  {
+   "label": "transfer: concurrency 256 ok",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "max_concurrent_requests": "256"
+   },
+   "errors": []
+  },
+  {
+   "label": "transfer: concurrency 0 rejected",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "max_concurrent_requests": "0"
+   },
+   "errors": [
+    "max_concurrent_requests"
+   ]
+  },
+  {
+   "label": "transfer: concurrency 257 rejected",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "max_concurrent_requests": "257"
+   },
+   "errors": [
+    "max_concurrent_requests"
+   ]
+  },
+  {
+   "label": "transfer: concurrency -1 rejected",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "max_concurrent_requests": "-1"
+   },
+   "errors": [
+    "max_concurrent_requests"
+   ]
+  },
+  {
+   "label": "transfer: concurrency 1.5 rejected",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "max_concurrent_requests": "1.5"
+   },
+   "errors": [
+    "max_concurrent_requests"
+   ]
+  },
+  {
+   "label": "transfer: concurrency ten rejected",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "max_concurrent_requests": "ten"
+   },
+   "errors": [
+    "max_concurrent_requests"
+   ]
+  },
+  {
+   "label": "transfer: style path ok",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "addressing_style": "path"
+   },
+   "errors": []
+  },
+  {
+   "label": "transfer: style virtual ok",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "addressing_style": "virtual"
+   },
+   "errors": []
+  },
+  {
+   "label": "transfer: style auto ok",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "addressing_style": "auto"
+   },
+   "errors": []
+  },
+  {
+   "label": "transfer: style PATH ok",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "addressing_style": "PATH"
+   },
+   "errors": []
+  },
+  {
+   "label": "transfer: style unknown",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "addressing_style": "bucket"
+   },
+   "errors": [
+    "addressing_style"
+   ]
+  },
+  {
+   "label": "transfer: all four bad at once",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "",
+    "multipart_threshold": "x",
+    "multipart_chunksize": "y",
+    "max_concurrent_requests": "z",
+    "addressing_style": "w"
+   },
+   "errors": [
+    "multipart_threshold",
+    "multipart_chunksize",
+    "max_concurrent_requests",
+    "addressing_style"
    ]
   }
  ]
