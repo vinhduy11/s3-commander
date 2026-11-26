@@ -213,6 +213,22 @@ impl Vault {
         Ok(summary)
     }
 
+    /// Copy a profile under a new id and name "<name> (copy)". The secret is copied inside the
+    /// vault and never returned.
+    pub fn duplicate_profile(&mut self, profile_id: &str) -> Result<ProfileSummary, VaultError> {
+        let mut copy = self.get_profile(profile_id)?;
+        copy.id = new_profile_id();
+        copy.name = format!("{} (copy)", copy.name);
+        let summary = copy.summary();
+        let state = self.state_mut()?;
+        state.profiles.push(copy);
+        if let Err(err) = self.persist() {
+            self.state_mut()?.profiles.pop();
+            return Err(err);
+        }
+        Ok(summary)
+    }
+
     pub fn delete_profile(&mut self, profile_id: &str) -> Result<(), VaultError> {
         let previous = self.state()?.profiles.clone();
         self.state_mut()?.profiles.retain(|profile| profile.id != profile_id);
@@ -445,5 +461,31 @@ mod tests {
         bad = sample_input("n");
         bad.secret_key = String::new(); // new profile needs a secret
         assert!(matches!(vault.save_profile(bad), Err(VaultError::InvalidProfile(_))));
+    }
+
+    #[test]
+    fn duplicate_copies_secret_inside_vault_with_new_id_and_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut vault = new_vault(&dir);
+        vault.create("m").unwrap();
+        let original = vault.save_profile(sample_input("dev")).unwrap();
+        let copy = vault.duplicate_profile(&original.id).unwrap();
+        assert_ne!(copy.id, original.id);
+        assert_eq!(copy.name, "dev (copy)");
+        assert_eq!(copy.endpoint, original.endpoint);
+        assert_eq!(vault.get_profile(&copy.id).unwrap().secret_key, "test-secret-value");
+        assert_eq!(vault.list_profiles().unwrap().len(), 2);
+        // the summary type has no secret field, and the copy survives a lock/unlock round trip
+        vault.lock();
+        vault.unlock("m").unwrap();
+        assert_eq!(vault.get_profile(&copy.id).unwrap().secret_key, "test-secret-value");
+    }
+
+    #[test]
+    fn duplicate_of_unknown_profile_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut vault = new_vault(&dir);
+        vault.create("m").unwrap();
+        assert!(matches!(vault.duplicate_profile("nope"), Err(VaultError::InvalidProfile(_))));
     }
 }

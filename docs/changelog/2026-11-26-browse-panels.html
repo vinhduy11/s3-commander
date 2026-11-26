@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Browse panels (step 2)</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:860px;margin:2rem auto;padding:0 1rem}code{background:#eee;padding:0 3px}</style></head>
+<body>
+<h1>Browse panels (roadmap step 2)</h1>
+<h2>Specs</h2>
+<ul>
+<li>Build an S3 client from a profile (custom endpoint, path style, region, static credentials, checksums only when required) and list buckets and prefixes with pagination.</li>
+<li>Local listing through Rust; one app error type with readable messages; commands <code>s3_list_buckets</code>, <code>s3_list_dir</code>, <code>local_list_dir</code>, <code>profile_test</code>, <code>profile_duplicate</code>.</li>
+<li>Dual-pane UI: Name/Ext/Size/Date, keyboard navigation, source selector per panel, virtualised list, profile switcher and Lock; function-key bar rendered disabled. Panel state in a Zustand store; S3 side resets on profile switch or lock, Local keeps state.</li>
+<li>Out of scope: copy, move, delete, rename, upload, download, drag and drop, context menu.</li>
+</ul>
+<h2>Actions</h2>
+<ul>
+<li>Rust: <code>app_error.rs</code>, <code>s3.rs</code>, <code>local.rs</code>; <code>Vault::duplicate_profile</code>; <code>ClientCache</code> and the new commands in <code>lib.rs</code>; dependencies aws-sdk-s3, aws-credential-types, aws-smithy-types; dev: aws-smithy-mocks, aws-smithy-http-client (test-util), aws-smithy-runtime-api, tokio.</li>
+<li>Frontend: <code>src/browse/*</code> (store, navigation, api, loader, panel), <code>src/screens/*</code>, <code>App.tsx</code> reduced to view switching; zustand, vitest and jsdom added.</li>
+<li>Tests: 29 Rust tests (19 new: 17 in s3/local/app_error, 2 duplicate_profile), 16 vitest tests.</li>
+</ul>
+<h2>Tradeoffs</h2>
+<ul>
+<li><b>Mocks</b>: <code>aws-smithy-mocks</code> for listing and error mapping; a capturing HTTP client for config behaviour (the SDK <code>Config</code> has no getters for endpoint or path style, so the test inspects the real request URI, signing header and checksum headers instead).</li>
+<li><b>Pagination</b>: one page per call, the UI loads the next page when the cursor nears the end; chosen over loading everything so a huge prefix opens fast. Buckets are not paginated (ponytail).</li>
+<li><b>Virtual list</b>: a small fixed-row-height windowing component instead of a library; fine for uniform rows.</li>
+<li><b>Errors</b>: new commands return a serializable <code>AppError</code>; the older vault commands keep returning strings to avoid churn.</li>
+<li><b>Client cache</b>: one client for the active profile, cleared on lock, save and delete; <code>profile_test</code> uses a fresh client so it always tests current settings.</li>
+<li><b>Not exercised</b>: no real MinIO, no running app (<code>tauri dev</code> not run), UI behaviour (keyboard, scrolling, virtualisation) only type-checked and built, not clicked through.</li>
+</ul>
+</body></html>

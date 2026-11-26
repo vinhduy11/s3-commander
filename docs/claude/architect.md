@@ -1,6 +1,6 @@
 # Architecture
 
-Design from the project owner; the vault below is implemented, the dual-pane UI and S3 calls are not yet.
+Design from the project owner; the vault, browsing (step 2) and its dual-pane UI are implemented; transfers and edit are not yet.
 
 - **Shell**: Tauri desktop app (Rust backend + web frontend).
 - **UI**: Total Commander-style dual pane. Two independent panels, each listing a directory/prefix with columns Name, Ext, Size, Date; a function-key bar at the bottom (F3 View, F4 Edit, F5 Copy, F6 Move, F7 New Folder, F8 Delete, Alt+F4 Exit); keyboard-driven navigation. Copy/Move between the two panels is the core workflow.
@@ -17,3 +17,12 @@ Design from the project owner; the vault below is implemented, the dual-pane UI 
 - No stored master-key hash: a wrong key fails on the AEAD auth tag, as does a tampered file. Vault states: no file = create, file = unlock.
 - The derived key lives only in the managed state (zeroized on lock/drop) and is never sent to the frontend. `profile_list` returns profiles without `secret_key`; `profile_save` with an empty secret on an existing profile keeps the stored secret. `Vault::get_profile` (with secret) is internal, for the later S3 step.
 - Profile = id, name, endpoint URL, access key, secret key, region (default `us-east-1`).
+
+## Browse (implemented, roadmap step 2)
+
+- `src-tauri/src/s3.rs` (no Tauri dependency): `client_config_builder(profile)` sets endpoint URL, `force_path_style(true)`, region, static credentials and `WhenRequired` request/response checksums (no `aws-config`). `list_buckets`, `list_dir(bucket, prefix, token)` return one page (delimiter `/`, prefixes become dirs, keys files, the key equal to the prefix is skipped, `next_token` for the next page), `check_connection` backs `profile_test`. SDK errors map to `AppError::S3` with a readable message.
+- `src-tauri/src/local.rs`: `list_dir(path)` over `std::fs`, dirs first, hidden files included, IO errors returned as readable `AppError::Local`. An empty path means the home directory; the frontend never touches the file system.
+- `src-tauri/src/app_error.rs`: `AppError` serializes to its message string. New commands return it; the older vault commands still return `String`.
+- `lib.rs`: `ClientCache` (managed state) holds the client of the one active profile; it is cleared on `vault_lock`, `profile_save`, `profile_delete` and replaced when another profile is used. `profile_test` always builds a fresh client. Commands: `s3_list_buckets`, `s3_list_dir`, `local_list_dir`, `profile_test`, `profile_duplicate` (copies the secret inside the vault, returns a summary only).
+- Frontend state: `src/browse/browse_store.ts` (Zustand) holds `left`/`right` panel slices (source, path, entries, nextToken, cursor, marked, scrollTop), `active`, `profileId`, `buckets`. `setProfile` (on change) and `lock` reset only bucket panels; Local keeps its state. No secrets in the store. `panel_loader.ts` loads listings and drops responses that arrive after the panel moved on.
+- Not built yet: function keys, context menu, transfers (steps 3 and later). The S3 pagination loads the next page when the cursor nears the end of the loaded rows.

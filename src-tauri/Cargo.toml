@@ -28,6 +28,9 @@ rand = "0.8"
 zeroize = "1.9.2"
 base64 = "0.22"
 thiserror = "2.0.21"
+aws-sdk-s3 = "1.137.0"
+aws-credential-types = "1.2.14"
+aws-smithy-types = "1.5.0"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
@@ -39,4 +42,9 @@ panic = "abort"
 strip = true
 
 [dev-dependencies]
+aws-smithy-mocks = "0.2.6"
+aws-sdk-s3 = { version = "1.137.0", features = ["test-util"] }
+tokio = { version = "1.54.1", features = ["rt", "macros"] }
 tempfile = "3.27.0"
+aws-smithy-http-client = { version = "1.1.13", features = ["test-util"] }
+aws-smithy-runtime-api = "1.12.3"
