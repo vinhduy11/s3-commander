@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-26
+
+First release: macOS DMG (unsigned), dual-pane MinIO file manager.
+
 ### Added
 - App icon (bucket with up and down transfer arrows, indigo): vector source `src-tauri/icon-source/app-icon.svg` and the generated `.icns`, `.ico` and PNG set in `src-tauri/icons/`; offline copy of the icon options page in `docs/artifact/`.
 - "Remember on this device" (roadmap step 6b, off by default). A checkbox in the Settings popover stores the vault's 32-byte derived key (never the master key text) in the OS keychain (service `dev.local.s3commander`, `keyring` crate: Apple Keychain, Secret Service on Linux without a system libdbus). The key is used only at app launch (`vault_unlock_remembered`; the master-key screen shows "Unlocking..." and falls back to the normal form on any failure); Lock and the idle auto-lock require the master key again, and the unthrottled remembered unlock never counts towards the unlock throttle. A stale, replaced or tampered vault deletes the entry silently; turning the option off, Forget and a failed decrypt delete it, and a master-key unlock refreshes it after the Argon2 upgrade changed the key. When no keychain exists the option reads "Not available on this system" and is disabled. New: `key_store.rs` (`KeyStore` trait), `remember.rs`, `settings.json` flag `remember_on_device` (old files load as off), commands `vault_unlock_remembered`, `remember_status`, `remember_set`, `remember_forget`. Documentation: `docs/claude/deployment.md` (macOS DMG, signing and notarization, Linux prerequisites, bundles, CI commands; unverified parts marked), safety and architect notes.
