@@ -9,6 +9,7 @@ use aws_sdk_s3::config::{
 };
 use aws_sdk_s3::error::{DisplayErrorContext, ProvideErrorMetadata, SdkError};
 use aws_sdk_s3::Client;
+use aws_smithy_runtime_api::client::result::DispatchFailure;
 use serde::Serialize;
 
 use crate::app_error::AppError;
@@ -134,13 +135,57 @@ pub fn describe_error_code(code: Option<&str>, message: Option<&str>) -> String 
     }
 }
 
+const MAX_ROOT_CAUSE_CHARS: usize = 200;
+
+/// Why a request never got a response, from the SDK's classification plus the source chain.
+/// Only the error texts of the connector chain are used (no request, headers or credentials).
+fn describe_dispatch_failure(failure: &DispatchFailure) -> String {
+    let mut chain = Vec::new();
+    let mut source = failure.as_connector_error().and_then(|c| std::error::Error::source(c));
+    while let Some(err) = source {
+        chain.push(err.to_string());
+        source = err.source();
+    }
+    let all = chain.join(" ").to_lowercase();
+    let root = chain.last().map(|text| trim_root_cause(text));
+    let has = |words: &[&str]| words.iter().any(|w| all.contains(w));
+
+    let cause = if failure.is_timeout() || has(&["timed out"]) {
+        "connection timed out"
+    } else if failure.is_user() || has(&["invalid uri", "invalid url", "invalid port"]) {
+        "invalid endpoint URL"
+    } else if has(&["certificate", "unknownissuer", "self signed", "self-signed", "notvalidforname"]) {
+        "TLS certificate not trusted or invalid (hint: self-signed or internal CA)"
+    } else if has(&["dns error", "failed to lookup", "resolve", "nodename nor servname"]) {
+        "could not resolve the host (DNS)"
+    } else if has(&["connection refused"]) {
+        "connection refused"
+    } else if failure.is_io() {
+        "connection failed"
+    } else {
+        return "cannot reach the endpoint (check the URL and the network)".to_string();
+    };
+    match root {
+        Some(root) => format!("{cause}: {root}"),
+        None => cause.to_string(),
+    }
+}
+
+fn trim_root_cause(text: &str) -> String {
+    let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    match flat.char_indices().nth(MAX_ROOT_CAUSE_CHARS) {
+        Some((end, _)) => format!("{}...", &flat[..end]),
+        None => flat,
+    }
+}
+
 fn map_sdk_error<E, R>(err: SdkError<E, R>) -> AppError
 where
     E: ProvideErrorMetadata + std::error::Error + 'static,
     R: std::fmt::Debug,
 {
     let message = match &err {
-        SdkError::DispatchFailure(_) => "cannot reach the endpoint (check the URL and the network)".to_string(),
+        SdkError::DispatchFailure(d) => describe_dispatch_failure(d),
         SdkError::TimeoutError(_) => "the request timed out".to_string(),
         SdkError::ServiceError(_) => describe_error_code(err.code(), err.message()),
         _ => DisplayErrorContext(&err).to_string(),
@@ -311,5 +356,93 @@ mod tests {
         assert_eq!(describe_error_code(Some("NoSuchBucket"), None), "bucket does not exist");
         assert_eq!(describe_error_code(Some("Weird"), Some("because")), "Weird: because");
         assert_eq!(describe_error_code(None, None), "unknown S3 error");
+    }
+
+    // --- DispatchFailure messages: the SDK error built from connector errors with mimicked causes ---
+
+    use aws_smithy_runtime_api::client::result::ConnectorError;
+
+    #[derive(Debug)]
+    struct Chained(&'static str, Box<dyn std::error::Error + Send + Sync>);
+    impl std::fmt::Display for Chained {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str(self.0)
+        }
+    }
+    impl std::error::Error for Chained {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            Some(self.1.as_ref())
+        }
+    }
+
+    fn dispatch_message(c: ConnectorError) -> String {
+        let err = SdkError::<ListObjectsV2Error, ()>::dispatch_failure(c);
+        map_sdk_error(err).to_string()
+    }
+
+    fn io(text: &str) -> ConnectorError {
+        ConnectorError::io(text.to_string().into())
+    }
+
+    #[test]
+    fn dispatch_dns_failure_is_named() {
+        let m = dispatch_message(io("dns error: failed to lookup address information: nodename nor servname provided, or not known"));
+        assert!(m.starts_with("could not resolve the host (DNS)"), "{m}");
+        assert!(m.contains("failed to lookup address information"), "{m}");
+    }
+
+    #[test]
+    fn dispatch_connection_refused_is_named() {
+        let m = dispatch_message(io("tcp connect error: Connection refused (os error 61)"));
+        assert!(m.starts_with("connection refused"), "{m}");
+    }
+
+    #[test]
+    fn dispatch_timeout_is_named() {
+        let m = dispatch_message(ConnectorError::timeout("operation timed out".to_string().into()));
+        assert!(m.starts_with("connection timed out"), "{m}");
+    }
+
+    #[test]
+    fn dispatch_certificate_errors_hint_at_the_ca() {
+        for text in [
+            "invalid peer certificate: UnknownIssuer",
+            "invalid peer certificate: Expired",
+            "invalid peer certificate: NotValidForName",
+            "self signed certificate in certificate chain",
+        ] {
+            let m = dispatch_message(io(text));
+            assert!(m.starts_with("TLS certificate not trusted or invalid"), "{text} -> {m}");
+            assert!(m.contains("self-signed or internal CA"), "{m}");
+            assert!(m.contains(text), "{m}");
+        }
+    }
+
+    #[test]
+    fn dispatch_invalid_url_is_named() {
+        let m = dispatch_message(ConnectorError::user("invalid URI: invalid port number".to_string().into()));
+        assert!(m.starts_with("invalid endpoint URL"), "{m}");
+        assert!(m.contains("invalid port number"), "{m}");
+    }
+
+    #[test]
+    fn dispatch_unclassified_keeps_the_old_hint() {
+        let m = dispatch_message(ConnectorError::other("weird".to_string().into(), None));
+        assert!(m.starts_with("cannot reach the endpoint (check the URL and the network)"), "{m}");
+    }
+
+    #[test]
+    fn dispatch_cause_is_read_from_the_source_chain_and_root_is_shown() {
+        let inner: Box<dyn std::error::Error + Send + Sync> = "invalid peer certificate: UnknownIssuer".into();
+        let c = ConnectorError::io(Box::new(Chained("client error (Connect)", inner)));
+        let m = dispatch_message(c);
+        assert!(m.starts_with("TLS certificate not trusted or invalid"), "{m}");
+        assert!(m.ends_with("invalid peer certificate: UnknownIssuer"), "{m}");
+    }
+
+    #[test]
+    fn dispatch_root_cause_is_trimmed() {
+        let m = dispatch_message(io(&format!("tcp connect error: {}", "x".repeat(1000))));
+        assert!(m.len() < 400, "{}", m.len());
     }
 }

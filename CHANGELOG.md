@@ -6,6 +6,7 @@
 - Panel stuck on "Loading...": a Local listing no longer depends on the profile, so `setProfile` after `profile_list` (fresh launch) no longer drops the first Local response; a bucket source without a profile no longer sets `loading` before returning; a dropped stale response clears `loading` when no newer request owns the panel.
 
 ### Changed
+- Endpoint errors now say why: an `SdkError::DispatchFailure` is classified (DNS failure, connection refused, connection timed out, TLS certificate not trusted or invalid, invalid endpoint URL) and shows a trimmed root-cause string from the error source chain; the old generic hint is kept only for an unclassified failure. No change to TLS trust behavior.
 - UI redesign, "Modern" direction (visual and layout only, no behavior change): design tokens with light and dark themes (`prefers-color-scheme`), system font stack (offline, no web fonts), inline SVG icons for folders and file types, restyled master-key screen, profiles list/form, top bar, dual-pane header/columns/footer with clear cursor, marked and active-panel states, loading spinner, disabled F-key bar. `App.css` replaced by `tokens.css` + `styles.css`.
 
 ### Added

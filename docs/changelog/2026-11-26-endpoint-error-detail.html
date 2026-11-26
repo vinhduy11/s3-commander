@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Endpoint error detail</title>
+<style>body{font:15px/1.5 system-ui;max-width:860px;margin:2rem auto;padding:0 1rem}code{background:#eef;padding:1px 4px}</style></head><body>
+<h1>Endpoint error detail (2026-11-26)</h1>
+
+<h2>Specs</h2>
+<p>Measured by the owner: after adding a profile with an https MinIO endpoint the app only showed "cannot reach the endpoint (check the URL and the network)". That text was produced for every <code>SdkError::DispatchFailure</code> (DNS, refused, timeout, TLS, bad URL, proxy), so the real cause was hidden. The root cause of the owner's failure is <b>not known</b>; a TLS certificate problem is only a suspect.</p>
+<p>Required: the message says why, with a trimmed root-cause string, never credentials; the old hint stays only for an unclassified failure; no change to TLS trust behavior; no frontend, vault or transfer change.</p>
+
+<h2>Actions</h2>
+<ul>
+<li><code>src-tauri/src/s3.rs</code>: new <code>describe_dispatch_failure</code> (uses <code>DispatchFailure::is_timeout/is_user/is_io</code>, <code>as_connector_error()</code> and the <code>std::error::Error::source</code> chain) and <code>trim_root_cause</code> (whitespace collapsed, 200 chars). <code>map_sdk_error</code> calls it for <code>DispatchFailure</code>.</li>
+<li>Messages: could not resolve the host (DNS); connection refused; connection timed out; TLS certificate not trusted or invalid (hint: self-signed or internal CA); invalid endpoint URL; connection failed (io, unknown cause); fallback old hint. Each is followed by <code>: &lt;root cause&gt;</code> when the chain has one.</li>
+<li><code>src-tauri/Cargo.toml</code>: <code>aws-smithy-runtime-api</code> moved from dev-dependencies to dependencies (already in the lock; needed for the <code>DispatchFailure</code> type).</li>
+<li>Tests (written first, red 6 failed / 2 passed, then green 37 passed): DNS, refused, timeout, four certificate texts, invalid URI, unclassified fallback, source-chain walk, trimming. Failures are built with <code>SdkError::dispatch_failure(ConnectorError::io/timeout/user/other(..))</code>.</li>
+<li><code>.gitignore</code>: <code>.claude/worktrees/</code>. <code>CHANGELOG.md</code>: Unreleased / Changed.</li>
+</ul>
+
+<h2>Tradeoffs</h2>
+<ul>
+<li>Classification is by the SDK kind first, then keyword match on the lower-cased source chain text (rustls and hyper give no typed variants through the boxed error). Keywords can drift with library versions; unknown text lands in "connection failed: root" which still shows the root cause. Inferred (not run against a real server): the exact wording the owner's failure will produce.</li>
+<li>The "timed out" and "invalid URL" checks run before the certificate check, so a text containing both reports the earlier one.</li>
+<li>Only connector error text is used, never the request, so signed headers and keys cannot appear.</li>
+</ul>
+
+<h3>TLS trust store finding (measured)</h3>
+<p>The client is the SDK default: <code>aws-sdk-s3</code> default features (<code>rustls</code>, <code>default-https-client</code>), no custom <code>http_client</code> in <code>src-tauri/src/s3.rs</code>. <code>Cargo.lock</code> has rustls 0.23 with aws-lc, <code>rustls-native-certs</code> and <code>security-framework</code>, and has no <code>webpki-roots</code>, <code>rustls-platform-verifier</code> or <code>native-tls</code>. In <code>aws-smithy-http-client</code> 1.1.13 the default <code>TrustStore</code> has <code>enable_native_roots: true</code> and loads roots with <code>rustls_native_certs::load_native_certs()</code>. So the trust roots are the OS store (macOS Keychain, Linux system CA bundle, <code>SSL_CERT_FILE</code>, <code>SSL_CERT_DIR</code>). An internal CA that the OS trusts is therefore expected to be accepted (inferred, not exercised with a handshake). A cert from a CA that is not in the OS store, an incomplete chain, an expired cert or a name/IP not in the cert SAN would still be rejected.</p>
+<h3>Proposed, not implemented</h3>
+<ul><li>Per-profile optional CA PEM file path, added to the trust store through <code>http_client(...)</code> on <code>client_config_builder</code> (<code>TrustStore::default().with_pem_certificate(..)</code>).</li>
+<li>No "accept invalid certs" switch.</li></ul>
+<h3>Not exercised</h3>
+<p>No real endpoint, no real TLS handshake, no owner server; unit tests use constructed SDK errors only.</p>
+</body></html>
