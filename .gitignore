@@ -25,3 +25,9 @@ dist-ssr
 
 # Claude worktrees
 .claude/worktrees/
+
+# From the GitHub-generated Rust template
+**/*.rs.bk
+*.pdb
+**/mutants.out*/
+rustc-ice-*.txt

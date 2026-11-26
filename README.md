@@ -19,6 +19,7 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 
 ```
 .
+├── LICENSE               # MIT license
 ├── CLAUDE.md             # index for Claude Code, points into docs/claude/
 ├── docs/claude/          # topic reference files (architect, rule, safety, commands, deployment)
 ├── docs/changelog/       # dated implementation reports
