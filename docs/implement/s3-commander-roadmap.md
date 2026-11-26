@@ -40,6 +40,13 @@ Common client setup (step 2 owns it): one `aws_sdk_s3::Client` per unlocked prof
 - Keyboard: the sort has no function-key slot yet; a "Sort by" entry (Name, Ext, Size, Date, Reverse) goes into the empty-area context menu of step 3c once both exist.
 - Tests: comparator as above; store keeps the sort per panel and across source switches; cursor stays on the same item after a re-sort; header click cycles ascending then descending.
 
+## Step 3g — Resizable columns in each panel
+
+- Drag the border between column headers (Name, Ext, Size, Date) to change the width of Ext, Size and Date; Name takes the remaining width. Each panel has its own widths, kept in the Zustand layout slice (survives view switches) and persisted in `localStorage` (guarded, clamped, optional), like the panel split ratio.
+- Minimum and maximum width per column (so `<DIR>` and a date always fit at the minimum), double-click on a border resets that column, the border is a focusable `role="separator"` that also moves with ArrowLeft/ArrowRight (Shift = bigger step), pointer events with pointer capture (consistent with the panel splitter and the drag module, no HTML5 drag).
+- Interplay with the panel splitter: the container-width rule that hides Date in a narrow panel still wins; column widths are clamped so Name never collapses below a minimum, and shrink back when the panel gets narrower.
+- Tests: pure clamp and reset functions, keyboard steps, pointer drag, persistence with storage unavailable or garbage, per panel independence, Name minimum, narrow-panel interplay.
+
 ## Step 3d — Presigned URLs (one file or many)
 
 - Rust `presign` module over `aws-sdk-s3` `PresigningConfig` (a local computation with the profile's static credentials, no request is sent): `presign_get(bucket, key, expires_in)` for one object and a batch variant for many; command `presign_urls(profile_id, bucket, keys, expires_secs)`.
@@ -72,11 +79,18 @@ Status: 4a (the Rust engine: multipart upload with retry, abort and resume, rang
 - UI: a transfer queue with per-item progress, cancel and retry (the demo shows the single-operation dialog).
 - Tests: part-splitting and resume logic as pure functions; failure injection with mocks.
 
-## Step 5 — View and Edit (F3/F4)
+## Step 5 — View and Edit (F3 / F4): text, CSV, JSON
 
-- View: text files below a size cap shown in-app, other files downloaded to the app cache dir and opened with the system viewer.
-- Edit: download, edit, upload to replace the object; detect that the object changed remotely (ETag) before overwriting.
-- Temp files live in the app cache dir and are removed on lock.
+- Entry points: F3 View (read-only), F4 Edit, Enter on a file and the "View" and "Edit" entries of the right-click menu (added to the existing data-driven item list); works for LOCAL and SERVER files. Files that are not text (binary, not valid UTF-8) show a clear message instead of opening.
+- Supported in-app: plain text (`.txt .md .log .ini .conf .yaml .yml .xml` and any file that is valid UTF-8 without NUL bytes), JSON, and CSV/TSV. Encoding is UTF-8 only (BOM kept, line endings LF or CRLF kept, trailing newline kept, so an untouched file saves byte-identical). Size cap for in-app open: 5 MiB; above it a message offers Download to a Local panel.
+- Editor: CodeMirror 6 (offline bundle, new dependency approved for this step): line numbers, undo and redo, search (Cmd/Ctrl+F), soft-wrap toggle, Save (Cmd/Ctrl+S), unsaved-changes guard on close (Esc or the close button), light and dark theme from the tokens. Opens as a large in-window viewer, not a new window.
+- JSON: syntax highlighting, live validation with the error line and column, "Format" (2 spaces) and "Minify" actions; saving invalid JSON is allowed after a warning (the user may be mid-edit), the validity state is always visible.
+- CSV/TSV: a Text | Table toggle. Table view: virtualised grid, header-row toggle, delimiter auto-detected (`,` `;` tab `|`) with a manual override, RFC 4180 quoting (embedded delimiters, quotes and newlines); cells editable in place; edits in either view stay in sync and serialize back with the original delimiter, quoting style and line endings where unchanged. Structural edits (add or delete rows and columns) are done in Text view or with simple row/column buttons (decide in the implementation and report).
+- Local files: read and write through Rust commands (the frontend never touches the file system); save is atomic (temporary file in the same directory, then rename) preserving permissions; the file's modified time and size are checked before saving and a changed-on-disk file asks Overwrite, Save as copy or Cancel.
+- Server objects: read with GetObject into memory (cap above) and remember the ETag, Content-Type and user metadata; Save uploads with PutObject carrying the same Content-Type and metadata and, when the server supports it, `If-Match: <ETag>` (otherwise a HEAD check right before the PUT); an object changed remotely asks Overwrite, Save as copy or Cancel; after a save the panel listing refreshes. Larger objects than the cap are not edited in app.
+- Not in scope: other encodings, binary or hex viewing, opening with the system viewer (a later idea), diffing, syntax highlighting beyond JSON.
+- Tests: Rust: text detection (UTF-8, BOM, NUL, invalid bytes), CRLF/LF and trailing newline preservation, atomic write and permission kept, changed-on-disk detection, server read/write with mocked ETag mismatch, Content-Type and metadata preserved, size cap. Frontend: CSV parse and serialize round trip (quotes, embedded newlines, delimiters, BOM, CRLF, ragged rows), delimiter detection, JSON format, minify and error position, dirty-state guard, shortcuts, F3 read-only versus F4 editable, opening from Enter and the context menu.
+- Temp files, if any, live in the app cache dir and are removed on lock.
 
 ## Step 6 — Hardening and multi-OS
 
