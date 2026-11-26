@@ -8,6 +8,7 @@ import { PanelSplitter, splitColumns } from "../browse/panel_splitter";
 import { listBuckets, listProfiles, type Profile } from "../browse/browse_api";
 import { useBrowseStore } from "../browse/browse_store";
 import { openSource } from "../browse/panel_loader";
+import { TransferQueuePanel } from "../queue/queue_panel";
 import { OpsDialogs } from "../ops/ops_dialogs";
 import { startDelete, startNewFolder, startRename, startTransfer } from "../ops/ops_flow";
 import { useOpsStore } from "../ops/ops_store";
@@ -118,6 +119,7 @@ export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: 
         <PanelSplitter />
         <FilePanel side="right" />
       </div>
+      <TransferQueuePanel />
       <div className="fkeys">
         {FUNCTION_KEYS.map(({ key, label, action }) => (
           <button

@@ -11,6 +11,6 @@ Tauri 2 + React + TypeScript + Vite (npm). Run from the repo root unless noted.
 
 - `npm test` — vitest (`vitest run`): panel store, navigation, operation targets and dialog flow tests, jsdom, backend mocked, no network.
 
-Tauri commands added by step 3a (called from `src/ops/ops_api.ts`): `transfer_preview(profileId, request)`, `transfer_execute(profileId, request, resolutions)`, `items_delete(profileId, location, items)`, `folder_create(profileId, location, name)`, `item_rename(profileId, location, item, newName)`.
+Tauri commands added by step 3a (called from `src/ops/ops_api.ts`): `transfer_preview(profileId, request)`, `transfer_start(profileId, request, resolutions)` (returns a job id; replaced `transfer_execute`; also `transfer_cancel(jobId)`, `transfer_retry(jobId)`, `transfer_dismiss(jobId)`, `transfer_list()` from `src/queue/queue_api.ts`), `items_delete(profileId, location, items)`, `folder_create(profileId, location, name)`, `item_rename(profileId, location, item, newName)`.
 
 No lint is configured yet. Tests are fully mocked or local (tempdirs); none connects to a real S3 endpoint, and local delete tests use a fake Trash, never the real one.

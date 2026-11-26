@@ -3,12 +3,12 @@
 // Zustand stores so these functions are testable without React.
 
 import { useBrowseStore, type Side } from "../browse/browse_store";
-import { openPath } from "../browse/panel_loader";
+import { transferStart } from "../queue/queue_api";
+import { registerJob } from "../queue/queue_events";
 import {
   createFolder,
   deleteItems,
   renameItem,
-  transferExecute,
   transferPreview,
   type ConflictPolicy,
   type Mode,
@@ -16,6 +16,7 @@ import {
   type RunReport,
   type TransferRequest,
 } from "./ops_api";
+import { refreshPanel } from "./panel_refresh";
 import { useOpsStore, type Dialog } from "./ops_store";
 import { cursorTarget, otherSide, panelLocation, resolveOperation, selectTargets, type Operation } from "./ops_targets";
 
@@ -24,23 +25,13 @@ const currentDialog = () => useOpsStore.getState().dialog;
 const show = (dialog: Dialog | null) => useOpsStore.getState().setDialog(dialog);
 const showError = (message: string) => show({ kind: "result", title: "Error", lines: [message], failed: [] });
 
-/** Reload a panel's listing (reusing openPath) and keep the cursor row, or focus `focusName`. */
-async function refresh(side: Side, focusName?: string): Promise<void> {
-  const { path, cursor } = browse()[side];
-  await openPath(side, path, focusName);
-  if (focusName === undefined) browse().setCursor(side, cursor);
-}
-
 function showReport(title: string, report: { failed: RunReport["failed"] }, summary: string) {
   if (report.failed.length) show({ kind: "result", title, lines: [summary], failed: report.failed });
   else show(null);
 }
 
-const describeRun = (report: RunReport) =>
-  `${report.transferred} done, ${report.skipped} skipped, ${report.failed.length} failed`;
-
 export function cancelDialog(): void {
-  // A running operation cannot be cancelled here (step 4 adds cancel for transfers).
+  // Delete, rename and New folder show a busy dialog without Cancel; transfers have none (the queue cancels them).
   if (currentDialog()?.kind !== "busy") show(null);
 }
 
@@ -69,19 +60,16 @@ async function planTransfer(operation: Operation, mode: Mode): Promise<void> {
   }
 }
 
-async function executeTransfer(side: Side, destSide: Side, request: TransferRequest, resolutions: Resolutions) {
-  show({ kind: "busy", label: request.mode === "move" ? "Moving..." : "Copying..." });
-  let outcome: Dialog | null = null;
-  try {
-    const report = await transferExecute(browse().profileId, request, resolutions);
-    if (report.failed.length) outcome = { kind: "result", title: "Finished with errors", lines: [describeRun(report)], failed: report.failed };
-  } catch (err) {
-    outcome = { kind: "result", title: "Error", lines: [String(err)], failed: [] };
-  }
+/** Queue the transfer as a background job: the dialogs close at once and the queue shows progress. */
+async function startJob(side: Side, request: TransferRequest, resolutions: Resolutions) {
+  show(null);
   browse().clearMarks(side);
-  const refreshed = request.mode === "move" && side !== destSide ? [side, destSide] : [destSide];
-  await Promise.all(refreshed.map((target) => refresh(target)));
-  show(outcome);
+  try {
+    const jobId = await transferStart(browse().profileId, request, resolutions);
+    registerJob(jobId, { source: request.source, dest: request.dest, mode: request.mode });
+  } catch (err) {
+    showError(String(err));
+  }
 }
 
 export async function confirmPlan(): Promise<void> {
@@ -91,7 +79,7 @@ export async function confirmPlan(): Promise<void> {
     show({ kind: "conflicts", side: dialog.side, destSide: dialog.destSide, request: dialog.request, summary: dialog.summary, index: 0, perItem: {} });
     return;
   }
-  await executeTransfer(dialog.side, dialog.destSide, dialog.request, { per_item: {}, default: null });
+  await startJob(dialog.side, dialog.request, { per_item: {}, default: null });
 }
 
 /** Decide the conflict on screen; run once the last one is decided. */
@@ -103,14 +91,14 @@ export async function resolveConflict(policy: ConflictPolicy): Promise<void> {
     show({ ...dialog, index: dialog.index + 1, perItem });
     return;
   }
-  await executeTransfer(dialog.side, dialog.destSide, dialog.request, { per_item: perItem, default: null });
+  await startJob(dialog.side, dialog.request, { per_item: perItem, default: null });
 }
 
 /** "Overwrite all" / "Skip all" / "Keep both all": the policy becomes the default for what is left. */
 export async function resolveAllConflicts(policy: ConflictPolicy): Promise<void> {
   const dialog = currentDialog();
   if (dialog?.kind !== "conflicts") return;
-  await executeTransfer(dialog.side, dialog.destSide, dialog.request, { per_item: dialog.perItem, default: policy });
+  await startJob(dialog.side, dialog.request, { per_item: dialog.perItem, default: policy });
 }
 
 export function startDelete(side: Side = browse().active): void {
@@ -134,7 +122,7 @@ export async function confirmDelete(): Promise<void> {
     outcome = { kind: "result", title: "Error", lines: [String(err)], failed: [] };
   }
   browse().clearMarks(dialog.side);
-  await refresh(dialog.side);
+  await refreshPanel(dialog.side);
   show(outcome);
 }
 
@@ -176,7 +164,7 @@ export async function submitName(name: string): Promise<void> {
     show({ ...dialog, initial: trimmed, error: String(err) });
     return;
   }
-  await refresh(dialog.side, trimmed);
+  await refreshPanel(dialog.side, trimmed);
 }
 
 export { otherSide };

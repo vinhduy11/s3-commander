@@ -11,17 +11,21 @@ pub mod s3;
 pub mod s3_ops;
 pub mod text_file;
 pub mod transfer_control;
+pub mod transfer_job;
 pub mod transfer_plan;
+pub mod transfer_queue;
 pub mod transfer_settings;
 pub mod transfer_run;
 pub mod vault;
 
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use app_error::{AppError, ProfileSaveError};
 use aws_sdk_s3::Client;
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
+use transfer_job::{JobSnapshot, ProgressEvent};
 use transfer_plan::{Location, PlanSummary, Resolutions, TopItem, TransferRequest};
+use transfer_queue::{EventSink, JobSpec, TransferQueue};
 use transfer_run::{DeleteReport, RunReport};
 use vault::{ProfileInput, ProfileSummary, Vault};
 
@@ -29,6 +33,24 @@ const VAULT_FILE_NAME: &str = "vault.json";
 
 type VaultState<'a> = State<'a, Mutex<Vault>>;
 type ClientState<'a> = State<'a, ClientCache>;
+type QueueState<'a> = State<'a, TransferQueue>;
+
+/// Event names the frontend listens to (see `src/queue/queue_events.ts`).
+const STATE_EVENT: &str = "transfer://state";
+const PROGRESS_EVENT: &str = "transfer://progress";
+
+/// Job events as Tauri events. Payloads are the snapshots and progress structs only: no credentials.
+struct TauriEvents(tauri::AppHandle);
+
+impl EventSink for TauriEvents {
+    fn state(&self, snapshot: &JobSnapshot) {
+        let _ = self.0.emit(STATE_EVENT, snapshot);
+    }
+
+    fn progress(&self, event: &ProgressEvent) {
+        let _ = self.0.emit(PROGRESS_EVENT, event);
+    }
+}
 
 /// The S3 client of the one active profile. Dropped on lock, on profile change/delete and
 /// replaced when another profile is used, so a stale client never outlives its profile.
@@ -97,8 +119,10 @@ fn vault_unlock(state: VaultState, master: String) -> Result<(), String> {
     with_vault(&state, |vault| vault.unlock(&master))
 }
 
+/// Lock stops every transfer first (cancels, aborts the kept uploads), then drops the client.
 #[tauri::command]
-fn vault_lock(state: VaultState, clients: ClientState) -> Result<(), String> {
+async fn vault_lock(state: VaultState<'_>, clients: ClientState<'_>, queue: QueueState<'_>) -> Result<(), String> {
+    queue.shutdown().await;
     clients.clear();
     with_vault(&state, |vault| {
         vault.lock();
@@ -202,10 +226,10 @@ fn client_for_locations(
 
 /// Transfer settings of the profile (AWS CLI defaults for what it leaves unset); defaults when no
 /// profile is involved (a local-only transfer).
-fn transfer_env_for(vault: &VaultState, profile_id: &Option<String>) -> Result<transfer_control::TransferEnv, AppError> {
-    let Some(profile_id) = profile_id.as_deref() else { return Ok(transfer_control::TransferEnv::default()) };
+fn transfer_settings_for(vault: &VaultState, profile_id: &Option<String>) -> Result<transfer_settings::EffectiveTransferSettings, AppError> {
+    let Some(profile_id) = profile_id.as_deref() else { return Ok(transfer_control::TransferEnv::default().settings) };
     let profile = lock_vault(vault).get_profile(profile_id)?;
-    Ok(transfer_control::TransferEnv::new(transfer_settings::effective_transfer_settings(&profile.transfer)))
+    Ok(transfer_settings::effective_transfer_settings(&profile.transfer))
 }
 
 /// Dry run of a copy or move: counts, total size and conflicts. Writes nothing.
@@ -220,17 +244,42 @@ async fn transfer_preview(
     transfer_run::plan_transfer(client.as_ref(), &request).await
 }
 
+/// Queues a copy or move as a background job and returns its id at once; progress and the result
+/// arrive as `transfer://state` and `transfer://progress` events.
 #[tauri::command]
-async fn transfer_execute(
+async fn transfer_start(
     state: VaultState<'_>,
     clients: ClientState<'_>,
+    queue: QueueState<'_>,
     profile_id: Option<String>,
     request: TransferRequest,
     resolutions: Resolutions,
-) -> Result<RunReport, AppError> {
+) -> Result<String, AppError> {
     let client = client_for_locations(&state, &clients, &profile_id, &[&request.source, &request.dest])?;
-    let env = transfer_env_for(&state, &profile_id)?;
-    transfer_run::run_transfer(client.as_ref(), &request, &resolutions, &env).await
+    let settings = transfer_settings_for(&state, &profile_id)?;
+    Ok(queue.start(JobSpec { request, resolutions, client, settings }))
+}
+
+#[tauri::command]
+async fn transfer_cancel(queue: QueueState<'_>, job_id: String) -> Result<(), AppError> {
+    queue.cancel(&job_id).await
+}
+
+#[tauri::command]
+async fn transfer_retry(queue: QueueState<'_>, job_id: String) -> Result<(), AppError> {
+    queue.retry(&job_id)
+}
+
+/// Forgets a finished job and aborts the incomplete uploads it kept.
+#[tauri::command]
+async fn transfer_dismiss(queue: QueueState<'_>, job_id: String) -> Result<(), AppError> {
+    queue.dismiss(&job_id).await
+}
+
+/// Every job the queue holds, for a frontend that attaches (or reloads) while jobs exist.
+#[tauri::command]
+async fn transfer_list(queue: QueueState<'_>) -> Result<Vec<JobSnapshot>, AppError> {
+    Ok(queue.snapshots())
 }
 
 #[tauri::command]
@@ -313,6 +362,7 @@ pub fn run() {
             let vault_path = app.path().app_data_dir()?.join(VAULT_FILE_NAME);
             app.manage(Mutex::new(Vault::new(vault_path)));
             app.manage(ClientCache::default());
+            app.manage(TransferQueue::with_engine(Arc::new(TauriEvents(app.handle().clone()))));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -330,7 +380,11 @@ pub fn run() {
             local_list_dir,
             local_stat_paths,
             transfer_preview,
-            transfer_execute,
+            transfer_start,
+            transfer_cancel,
+            transfer_retry,
+            transfer_dismiss,
+            transfer_list,
             items_delete,
             folder_create,
             item_rename,

@@ -144,11 +144,6 @@ export function OpsDialogs() {
           </dl>
           {summary.conflict_count > 0 && <p className="muted">You will choose what to do with each existing item next.</p>}
           {request.mode === "move" && <p className="muted">Each source is deleted only after its copy is verified.</p>}
-          {summary.too_large_count > 0 && (
-            <div className="alert">
-              {summary.too_large_count} item(s) are above 5 GiB and will fail: large files arrive with step 4.
-            </div>
-          )}
           <Buttons>
             <button type="button" onClick={cancelDialog}>Cancel</button>
             <button type="button" data-autofocus className="primary" onClick={() => void confirmPlan()}>

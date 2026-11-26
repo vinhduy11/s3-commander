@@ -13,7 +13,7 @@ use crate::app_error::AppError;
 use crate::local::describe_io_error;
 use crate::local_ops::{self, TrashBin};
 use crate::{multipart_upload, ranged_download, s3_ops};
-use crate::transfer_control::TransferEnv;
+use crate::transfer_control::{EngineError, TransferEnv};
 use crate::transfer_plan::{
     apply_resolutions, build_plan, check_destination, summarize, ConflictPolicy, ExistingInfo, Found,
     ItemFailure, ItemRef, Location, Mode, PlanItem, PlanSummary, Resolutions, TopItem, TransferRequest,
@@ -38,8 +38,30 @@ pub struct DeleteReport {
 
 const MAX_KEEP_BOTH_ROUNDS: usize = 100;
 
+/// Why one item failed: the readable message, whether it was a cancel, and whether an
+/// incomplete upload may be left on the server (a cancel whose abort failed).
+#[derive(Debug)]
+pub struct CopyFailure {
+    pub message: String,
+    pub cancelled: bool,
+    pub leftover_upload: bool,
+}
+
+impl From<AppError> for CopyFailure {
+    fn from(err: AppError) -> Self {
+        Self { message: err.to_string(), cancelled: false, leftover_upload: false }
+    }
+}
+
+impl From<EngineError> for CopyFailure {
+    fn from(err: EngineError) -> Self {
+        let (cancelled, leftover_upload) = (err.is_cancelled(), err.leftover_upload_id().is_some());
+        Self { message: AppError::from(err).to_string(), cancelled, leftover_upload }
+    }
+}
+
 /// What a finished item leaves to clean up when the operation is a move.
-enum Removal {
+pub enum Removal {
     Nothing,
     SourceRemoved,
     ServerKey { bucket: String, key: String },
@@ -180,15 +202,32 @@ async fn resolve(
     Err(AppError::Local("could not find a free name for \"keep both\"".into()))
 }
 
+/// The plan after the conflict decisions: what a job will run, item by item.
+pub async fn prepare_plan(client: Option<&Client>, request: &TransferRequest, resolutions: &Resolutions) -> Result<Vec<PlanItem>, AppError> {
+    let (plan, details) = prepare(client, request).await?;
+    let existing: HashSet<ItemRef> = details.keys().cloned().collect();
+    resolve(client, &plan, existing, resolutions).await
+}
+
+/// After a move from a local folder: remove the source folders the move emptied.
+pub fn remove_emptied_local_dirs(request: &TransferRequest) {
+    if request.mode != Mode::Move {
+        return;
+    }
+    if let Some(parent) = local_path(&request.source) {
+        request.items.iter().filter(|item| item.is_dir).for_each(|item| local_ops::remove_empty_tree(&parent.join(&item.name)));
+    }
+}
+
+/// One-shot run of a whole transfer (no queue): used by rename; the UI's copy and move go through
+/// the job queue instead.
 pub async fn run_transfer(
     client: Option<&Client>,
     request: &TransferRequest,
     resolutions: &Resolutions,
     env: &TransferEnv,
 ) -> Result<RunReport, AppError> {
-    let (plan, details) = prepare(client, request).await?;
-    let existing: HashSet<ItemRef> = details.keys().cloned().collect();
-    let plan = resolve(client, &plan, existing, resolutions).await?;
+    let plan = prepare_plan(client, request, resolutions).await?;
     let mut report = RunReport::default();
     let mut server_removals: HashMap<String, Vec<String>> = HashMap::new();
     for item in &plan {
@@ -212,11 +251,7 @@ pub async fn run_transfer(
     for (bucket, keys) in server_removals {
         remove_server_sources(client, &bucket, &keys, &mut report).await;
     }
-    if request.mode == Mode::Move {
-        if let Some(parent) = local_path(&request.source) {
-            request.items.iter().filter(|item| item.is_dir).for_each(|item| local_ops::remove_empty_tree(&parent.join(&item.name)));
-        }
-    }
+    remove_emptied_local_dirs(request);
     Ok(report)
 }
 
@@ -239,10 +274,18 @@ async fn remove_server_sources(client: Option<&Client>, bucket: &str, keys: &[St
 }
 
 async fn transfer_one(client: Option<&Client>, item: &PlanItem, mode: Mode, env: &TransferEnv) -> Result<Removal, String> {
-    copy_item(client, item, mode, env).await.map_err(|err| err.to_string())
+    copy_item(client, item, mode, env, None).await.map_err(|failure| failure.message)
 }
 
-async fn copy_item(client: Option<&Client>, item: &PlanItem, mode: Mode, env: &TransferEnv) -> Result<Removal, AppError> {
+/// Copy one planned item (and verify it for a move). `resume_upload_id` continues a kept multipart
+/// upload instead of starting a new one (an upload of a large file only).
+pub async fn copy_item(
+    client: Option<&Client>,
+    item: &PlanItem,
+    mode: Mode,
+    env: &TransferEnv,
+    resume_upload_id: Option<&str>,
+) -> Result<Removal, CopyFailure> {
     if item.is_dir {
         match (&item.src, &item.dst) {
             (ItemRef::Object { bucket: from_bucket, key: from_key }, ItemRef::Object { bucket, key }) => {
@@ -266,12 +309,11 @@ async fn copy_item(client: Option<&Client>, item: &PlanItem, mode: Mode, env: &T
             }
             tokio::fs::copy(from, to).await.map_err(|err| describe_io_error(&err, from))?;
         }
-        (ItemRef::Local(from), ItemRef::Object { bucket, key }) => {
-            multipart_upload::upload_file(require_client(client)?, env, bucket, key, from).await.map_err(AppError::from)?
-        }
-        (ItemRef::Object { bucket, key }, ItemRef::Local(to)) => {
-            ranged_download::download_file(require_client(client)?, env, bucket, key, to).await.map_err(AppError::from)?
-        }
+        (ItemRef::Local(from), ItemRef::Object { bucket, key }) => match resume_upload_id {
+            Some(upload_id) => multipart_upload::resume_upload(require_client(client)?, env, bucket, key, from, upload_id).await?,
+            None => multipart_upload::upload_file(require_client(client)?, env, bucket, key, from).await?,
+        },
+        (ItemRef::Object { bucket, key }, ItemRef::Local(to)) => ranged_download::download_file(require_client(client)?, env, bucket, key, to).await?,
         (ItemRef::Object { bucket: from_bucket, key: from_key }, ItemRef::Object { bucket, key }) => {
             s3_ops::copy_object(require_client(client)?, from_bucket, from_key, bucket, key, item.size).await?
         }

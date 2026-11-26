@@ -2,7 +2,7 @@
 
 Tauri desktop app to manage files and directories on a MinIO server (S3-compatible API) with a Total Commander-style dual-pane UI. Multiple profiles, secrets encrypted in an app vault, unlocked with a master key. See `CLAUDE.md` and `docs/claude/` for the design.
 
-Status: multi-profile vault, browsing (dual-pane Local / bucket panels, profile switcher, profile test and duplicate) and basic file operations: F5 Copy, F6 Move, F7 New folder, F8 Delete, F2 Rename between Local and server panels, with a per-item conflict dialog (step 3a). Drag and drop and the context menu (3b, 3c) are in. Uploads and downloads of any size (up to the 5 TiB object limit) go through the multipart / ranged transfer engine (step 4a, Rust only): parts in parallel with retry, abort on failure or cancel, resume of a partly uploaded multipart, ranged downloads through a `.part` file. The transfer queue with progress, Cancel and Retry (step 4b) and view/edit (step 5) are later steps (`docs/implement/s3-commander-roadmap.md`).
+Status: multi-profile vault, browsing (dual-pane Local / bucket panels, profile switcher, profile test and duplicate) and basic file operations: F5 Copy, F6 Move, F7 New folder, F8 Delete, F2 Rename between Local and server panels, with a per-item conflict dialog (step 3a). Drag and drop and the context menu (3b, 3c) are in. Uploads and downloads of any size (up to the 5 TiB object limit) go through the multipart / ranged transfer engine (step 4a, Rust only): parts in parallel with retry, resume of a partly uploaded multipart, ranged downloads through a `.part` file. Copy, Move and drops run as background jobs in a transfer queue above the function keys (step 4b): progress, speed and ETA, Cancel, and Retry that resumes a kept multipart upload (an app crash or quit leaves such an upload on the server, see `docs/claude/architect.md`). View/edit (step 5) is a later step (`docs/implement/s3-commander-roadmap.md`).
 
 ## Development
 
@@ -61,11 +61,20 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 │       ├── drag_drop_view.tsx     # drag ghost and refusal toast
 │       ├── os_drop.ts             # OS file manager drop: Tauri webview drag-drop event, position mapping, upload through the F5 flow
 │       └── *.test.ts(x)           # vitest tests
+│   ├── queue/                     # transfer queue (step 4b)
+│   │   ├── queue_logic.ts         # pure: job types, event reducer, speed (moving window) and ETA, status line, buttons per state
+│   │   ├── queue_store.ts         # Zustand store: jobs, expanded flag, per-job meta (where it was going)
+│   │   ├── queue_api.ts           # typed wrappers over transfer_start / cancel / retry / dismiss / list
+│   │   ├── queue_events.ts        # listens to transfer://state and transfer://progress, refreshes the panels when a job finishes
+│   │   ├── queue_panel.tsx        # the panel docked above the F-key bar: collapsed status line, rows, Cancel / Retry / Dismiss, failures
+│   │   ├── queue_fixtures.ts      # test fixture (job snapshot)
+│   │   └── *.test.ts(x)           # vitest tests
 │   └── ops/                       # file operations (step 3a)
 │       ├── ops_api.ts             # typed wrappers over the operation commands and their DTO types
 │       ├── ops_targets.ts         # pure: marked-or-cursor targets, panel location, destination = other panel
 │       ├── ops_store.ts           # Zustand store for the single open dialog (kept apart from panel state)
-│       ├── ops_flow.ts            # flows: preview, per-item conflicts, execute, delete, new folder, rename, refresh
+│       ├── ops_flow.ts            # flows: preview, per-item conflicts, start a transfer job, delete, new folder, rename
+│       ├── panel_refresh.ts       # refreshPanel: reload a panel with openPath, keep the cursor row
 │       ├── ops_dialogs.tsx        # modal dialogs (delete, name, plan, conflicts, busy, result), Esc / Enter
 │       ├── modal.tsx              # the shared modal shell: scrim, focus trap, Esc / Enter
 │       ├── presign_flow.ts        # presigned URLs (step 3d): options, folder confirm, result, copy, save as text file
@@ -81,7 +90,7 @@ npm test               # vitest: panel store, navigation helpers, operation targ
     ├── icons/            # app icons
     └── src/
         ├── main.rs       # binary entry
-        ├── lib.rs        # Tauri builder, vault + client-cache state, thin commands (incl. transfer_preview, transfer_execute, items_delete, folder_create, item_rename, presign_preview, presign_urls, write_text_file)
+        ├── lib.rs        # Tauri builder, vault + client-cache state, thin commands (incl. transfer_preview, transfer_start / transfer_cancel / transfer_retry / transfer_dismiss / transfer_list, items_delete, folder_create, item_rename, presign_preview, presign_urls, write_text_file)
         ├── app_error.rs  # AppError: the one error type the UI sees (serialized as a message); ProfileSaveError with per-field errors
         ├── profile_rules.rs # the one place that validates and normalizes a profile input (per-field errors); no Tauri dependency
         ├── transfer_settings.rs # per-profile transfer settings: size parser, validation, effective_transfer_settings (AWS CLI defaults)
@@ -90,11 +99,13 @@ npm test               # vitest: panel store, navigation helpers, operation targ
         ├── local.rs      # local_list_dir over std::fs; no Tauri dependency
         │                     # (also local_stat_paths: folder/file, parent and name of OS-dropped paths)
         ├── transfer_plan.rs  # pure transfer planner: key mapping, validation, conflicts, resolutions, summary, delete batches
-        ├── transfer_run.rs   # operation engine: expand, probe, resolve, run, move = copy + verify + delete; delete, new folder, rename; calls the upload and download engines with the profile's TransferEnv
+        ├── transfer_run.rs   # operation engine: expand, probe, resolve (prepare_plan), copy_item (move = copy + verify), one-shot run_transfer (rename); delete, new folder, rename
+        ├── transfer_job.rs   # pure job / item state machine (queued, running, done, failed, cancelling, cancelled), snapshots, progress events, job titles
+        ├── transfer_queue.rs # background job runner: 3 jobs at once, sequential items, EventSink, throttled progress, kept uploads for Retry, Cancel / Dismiss / Lock abort them
         ├── s3_ops.rs     # object ops: list all, head, empty put, CopyObject / UploadPartCopy, DeleteObjects in batches
         ├── part_plan.rs  # pure plan_parts(size, chunksize): part size raised to 5 MiB / 10,000 parts, 5 GiB part and 5 TiB object limits
         ├── transfer_control.rs # ProgressSink (+ no-op), CancelToken, RetryPolicy, EngineError, run_bounded, TransferEnv (settings + sink + token + retry)
-        ├── multipart_upload.rs # upload_file (PutObject below the threshold, else parallel multipart with retry and abort) and resume_upload (ListParts)
+        ├── multipart_upload.rs # upload_file (PutObject below the threshold, else parallel multipart with retry; a failure keeps the upload, a cancel aborts it), resume_upload (ListParts), abort_upload
         ├── ranged_download.rs  # download_file: ranged GetObject into <name>.part (+ ETag/size sidecar, resume), then atomic rename
         ├── presign.rs    # presigned GET URLs (local SigV4 computation): expiry bounds, content-disposition, folder expansion, batch; no Tauri dependency
         ├── text_file.rs  # write_text_file for the URL list chosen in the save dialog; no Tauri dependency

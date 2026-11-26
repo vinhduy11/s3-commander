@@ -158,6 +158,35 @@ body.resizing * { cursor: col-resize !important; }
 .fkeys { display: grid; grid-template-columns: repeat(8, 1fr); gap: var(--sp-1); }
 .fkeys button { padding: 4px; font-size: var(--text-sm); gap: 6px; background: var(--surface-2); }
 .fkeys button .fk { color: var(--accent); font: 700 var(--text-xs) var(--font-mono); }
+/* ---- transfer queue (docked above the function keys) ---- */
+.queue { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); min-width: 0; }
+.queue-head { width: 100%; justify-content: flex-start; min-height: 26px; padding: 2px var(--sp-2); border: 0; background: transparent; font-size: var(--text-sm); }
+.queue-head:hover:not(:disabled) { background: var(--surface-2); }
+.queue-heading { font-weight: 600; }
+.queue-body { max-height: 232px; overflow-y: auto; border-top: 1px solid var(--line-soft); }
+.queue-empty { padding: var(--sp-2) var(--sp-3); font-size: var(--text-sm); }
+.queue-row { display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--line-soft); }
+.queue-row:last-child { border-bottom: 0; }
+.queue-line { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.queue-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-md); font-weight: 500; }
+.queue-state { padding: 0 var(--sp-2); border-radius: var(--radius-lg); background: var(--surface-3); color: var(--muted); font-size: var(--text-xs); line-height: 18px; }
+.queue-row[data-state="running"] .queue-state { background: var(--accent-soft); color: var(--accent); }
+.queue-row[data-state="done"] .queue-state { color: var(--ok); }
+.queue-row[data-state="failed"] .queue-state { background: var(--danger-soft); color: var(--danger); }
+.queue-row[data-state="cancelling"] .queue-state { background: var(--warn-soft); color: var(--warn); }
+.queue-actions { display: flex; gap: var(--sp-1); }
+.queue-actions button { min-height: 22px; padding: 0 var(--sp-2); font-size: var(--text-xs); }
+.queue-bar { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.queue-fill { height: 100%; border-radius: 3px; background: var(--accent); transition: width var(--ease); }
+.queue-row[data-state="done"] .queue-fill { background: var(--ok); }
+.queue-row[data-state="failed"] .queue-fill { background: var(--danger); }
+.queue-row[data-state="cancelled"] .queue-fill, .queue-row[data-state="queued"] .queue-fill { background: var(--muted); }
+.queue-meta { display: flex; flex-wrap: wrap; gap: 0 var(--sp-3); font-size: var(--text-xs); min-width: 0; }
+.queue-current { max-width: 36ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-xs); }
+.queue-link { align-self: flex-start; min-height: 0; padding: 0; border: 0; background: none; color: var(--danger); font-size: var(--text-xs); text-decoration: underline; }
+.queue-link:hover:not(:disabled) { background: none; }
+.queue-failures { margin: 0; padding: 0 0 0 var(--sp-4); max-height: 120px; overflow-y: auto; font-size: var(--text-xs); }
+.queue-failures li { display: flex; flex-direction: column; margin-bottom: var(--sp-1); }
 @media (max-width: 720px) {
   .panels { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; gap: var(--sp-2); }
   .panel-splitter { display: none; }

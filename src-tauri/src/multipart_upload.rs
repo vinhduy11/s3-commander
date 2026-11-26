@@ -1,7 +1,10 @@
 //! Upload of one local file: a streamed PutObject below the profile's multipart threshold,
 //! otherwise a multipart upload with parts read from the file at their offset, uploaded in parallel
-//! (bounded), retried per part, completed in part order and aborted on failure or cancel. A
-//! partly uploaded multipart can be resumed from the server's ListParts. No Tauri dependency.
+//! (bounded), retried per part and completed in part order. A cancel aborts the multipart; a
+//! failure KEEPS it (the id is announced through `ProgressSink::upload_created`) so the queue's
+//! Retry can resume it from the server's ListParts, and Cancel / Dismiss / Lock abort it through
+//! `abort_upload`. An app crash or quit therefore leaves an incomplete upload on the server.
+//! No Tauri dependency.
 //!
 //! Memory: a part is read into memory only while it is being sent, so the engine holds at most
 //! `parts in flight x part size` bytes, and `TransferEnv::upload_concurrency` keeps that product
@@ -41,7 +44,7 @@ pub async fn upload_file(client: &Client, env: &TransferEnv, bucket: &str, key: 
 
 /// Continue the multipart upload `upload_id` of `bucket/key`: parts the server already holds with
 /// the planned number and size are kept, the rest are uploaded, then the upload is completed.
-/// Like a fresh upload it is aborted when it fails for good or is cancelled.
+/// Like a fresh upload it is kept when it fails and aborted when it is cancelled.
 pub async fn resume_upload(
     client: &Client,
     env: &TransferEnv,
@@ -58,7 +61,7 @@ pub async fn resume_upload(
     if env.cancel.is_cancelled() {
         return Err(EngineError::cancelled());
     }
-    // A failed listing leaves the upload as it was, so it is reported instead of aborted.
+    // A failed listing leaves the upload as it was (kept, like any other failure).
     let held = list_uploaded_parts(client, env, bucket, key, upload_id).await.map_err(|err| err.with_leftover(upload_id.to_string()))?;
     let kept = parts
         .iter()
@@ -102,15 +105,22 @@ struct Target<'a> {
     upload_id: &'a str,
 }
 
-/// Upload the missing parts and complete; on any error abort the upload (best effort).
+/// Upload the missing parts and complete. A cancel aborts the upload (best effort); any other
+/// error keeps it so it can be resumed.
 async fn finish(target: Target<'_>, size: u64, parts: Vec<PartSpec>, kept: Vec<(PartSpec, String)>) -> Result<(), EngineError> {
     match upload_and_complete(&target, size, parts, kept).await {
         Ok(()) => Ok(()),
-        Err(err) => {
-            let aborted = target.client.abort_multipart_upload().bucket(target.bucket).key(target.key).upload_id(target.upload_id).send().await;
+        Err(err) if err.is_cancelled() => {
+            let aborted = abort_upload(target.client, target.bucket, target.key, target.upload_id).await;
             Err(if aborted.is_ok() { err } else { err.with_leftover(target.upload_id.to_string()) })
         }
+        Err(err) => Err(err),
     }
+}
+
+/// Abort a multipart upload on the server; the error is the readable reason.
+pub async fn abort_upload(client: &Client, bucket: &str, key: &str, upload_id: &str) -> Result<(), AppError> {
+    client.abort_multipart_upload().bucket(bucket).key(key).upload_id(upload_id).send().await.map(|_| ()).map_err(map_sdk_error)
 }
 
 /// Everything a spawned part upload needs, owned so the task can outlive the caller's borrows.
@@ -450,7 +460,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_part_that_keeps_failing_gets_three_attempts_then_the_upload_is_aborted() {
+    async fn a_part_that_keeps_failing_gets_three_attempts_then_the_upload_is_kept_for_resume() {
         let dir = tempfile::tempdir().unwrap();
         let path = sparse_file(dir.path(), 11 * MIB);
         let broken = mock!(aws_sdk_s3::Client::upload_part)
@@ -462,9 +472,9 @@ mod tests {
         let (create, complete, abort) = (create_rule(), complete_rule(&Default::default()), abort_rule());
         let client = client_with(&[&create, &broken, &steady, &complete, &abort]);
         let err = upload_file(&client, &env(5 * MIB, 5 * MIB, 1), "bkt", "big.bin", &path).await.unwrap_err();
-        assert_eq!((broken.num_calls(), abort.num_calls(), complete.num_calls()), (3, 1, 0));
+        assert_eq!((broken.num_calls(), abort.num_calls(), complete.num_calls()), (3, 0, 0), "a failure keeps the upload so Retry can resume it");
         assert!(!err.is_cancelled());
-        assert_eq!(err.leftover_upload_id(), None, "abort worked, nothing is left behind");
+        assert_eq!(err.leftover_upload_id(), None, "the caller already holds the id from upload_created");
     }
 
     #[tokio::test]
@@ -475,24 +485,40 @@ mod tests {
         let (create, abort) = (create_rule(), abort_rule());
         let client = client_with(&[&create, &denied, &abort]);
         let err = upload_file(&client, &env(5 * MIB, 5 * MIB, 1), "bkt", "big.bin", &path).await.unwrap_err();
-        assert_eq!((denied.num_calls(), abort.num_calls()), (1, 1));
+        assert_eq!((denied.num_calls(), abort.num_calls()), (1, 0), "not retried, and kept for resume");
         assert!(matches!(err, EngineError::Failed { .. }));
         let text = AppError::from(err).to_string().to_lowercase();
         assert!(!["secret", "authorization", "signature", "http"].iter().any(|leak| text.contains(leak)), "{text}");
     }
 
     #[tokio::test]
-    async fn a_failed_abort_is_reported_with_the_upload_id_and_keeps_the_original_error() {
+    async fn a_failed_complete_keeps_the_upload_and_does_not_abort() {
         let dir = tempfile::tempdir().unwrap();
         let path = sparse_file(dir.path(), 11 * MIB);
-        let denied = mock!(aws_sdk_s3::Client::upload_part).then_http_response(|| status(403));
-        let abort = mock!(aws_sdk_s3::Client::abort_multipart_upload).then_error(|| AbortMultipartUploadError::unhandled("down"));
-        let create = create_rule();
-        let client = client_with(&[&create, &denied, &abort]);
+        let complete = mock!(aws_sdk_s3::Client::complete_multipart_upload).then_http_response(|| status(403));
+        let (create, part, abort) = (create_rule(), part_ok_rule(), abort_rule());
+        let client = client_with(&[&create, &part, &complete, &abort]);
         let err = upload_file(&client, &env(5 * MIB, 5 * MIB, 1), "bkt", "big.bin", &path).await.unwrap_err();
+        assert_eq!((complete.num_calls(), abort.num_calls()), (1, 0));
+        assert!(matches!(err, EngineError::Failed { .. }));
+    }
+
+    #[tokio::test]
+    async fn a_failed_abort_after_a_cancel_is_reported_with_the_upload_id() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = sparse_file(dir.path(), 16 * MIB);
+        let token = CancelToken::default();
+        let recorder = Arc::new(Recorder { cancel_after_first_part: Some(token.clone()), ..Default::default() });
+        let mut env = env(5 * MIB, 5 * MIB, 1);
+        env.sink = recorder;
+        env.cancel = token;
+        let abort = mock!(aws_sdk_s3::Client::abort_multipart_upload).then_error(|| AbortMultipartUploadError::unhandled("down"));
+        let (create, part) = (create_rule(), part_ok_rule());
+        let client = client_with(&[&create, &part, &abort]);
+        let err = upload_file(&client, &env, "bkt", "big.bin", &path).await.unwrap_err();
+        assert!(err.is_cancelled());
         assert_eq!(err.leftover_upload_id(), Some("u1"));
-        let text = AppError::from(err).to_string();
-        assert!(text.contains("u1"), "{text}");
+        assert!(AppError::from(err).to_string().contains("u1"));
     }
 
     #[tokio::test]
@@ -585,7 +611,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_failed_resume_aborts_like_a_fresh_upload() {
+    async fn a_failed_resume_keeps_the_upload_like_a_fresh_one() {
         let dir = tempfile::tempdir().unwrap();
         let path = sparse_file(dir.path(), 11 * MIB);
         let list = mock!(aws_sdk_s3::Client::list_parts).then_output(|| ListPartsOutput::builder().is_truncated(false).build());
@@ -593,7 +619,7 @@ mod tests {
         let abort = abort_rule();
         let client = client_with(&[&list, &denied, &abort]);
         let err = resume_upload(&client, &env(5 * MIB, 5 * MIB, 1), "bkt", "big.bin", &path, "u1").await.unwrap_err();
-        assert_eq!((denied.num_calls(), abort.num_calls()), (1, 1));
+        assert_eq!((denied.num_calls(), abort.num_calls()), (1, 0));
         assert!(!err.is_cancelled());
     }
 

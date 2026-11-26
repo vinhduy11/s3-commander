@@ -28,7 +28,6 @@ export type PlanSummary = {
   total_bytes: number;
   conflict_count: number;
   conflicts: ConflictInfo[];
-  too_large_count: number;
 };
 
 /** Decisions per conflicting destination plus a default for the rest (the "all" buttons). */
@@ -40,9 +39,6 @@ export type DeleteReport = { deleted: number; failed: ItemFailure[] };
 
 export const transferPreview = (profileId: string | null, request: TransferRequest) =>
   invoke<PlanSummary>("transfer_preview", { profileId, request });
-
-export const transferExecute = (profileId: string | null, request: TransferRequest, resolutions: Resolutions) =>
-  invoke<RunReport>("transfer_execute", { profileId, request, resolutions });
 
 export const deleteItems = (profileId: string | null, location: Location, items: TopItem[]) =>
   invoke<DeleteReport>("items_delete", { profileId, location, items });

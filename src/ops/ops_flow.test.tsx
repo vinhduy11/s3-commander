@@ -6,6 +6,8 @@ import { emptyPanel, initialBrowseState, useBrowseStore, type PanelEntry } from 
 import type { ConflictInfo, PlanSummary, RunReport } from "./ops_api";
 import * as api from "./ops_api";
 import * as browseApi from "../browse/browse_api";
+import * as queueApi from "../queue/queue_api";
+import * as queueEvents from "../queue/queue_events";
 import {
   cancelDialog,
   confirmDelete,
@@ -23,6 +25,8 @@ import { useOpsStore } from "./ops_store";
 
 vi.mock("./ops_api");
 vi.mock("../browse/browse_api");
+vi.mock("../queue/queue_api");
+vi.mock("../queue/queue_events");
 
 const file = (name: string, size = 1): PanelEntry => ({ name, isDir: false, size, modified: 1 });
 const ops = () => useOpsStore.getState();
@@ -42,7 +46,6 @@ const summary = (conflicts: ConflictInfo[] = []): PlanSummary => ({
   total_bytes: 30,
   conflict_count: conflicts.length,
   conflicts,
-  too_large_count: 0,
 });
 const report = (overrides: Partial<RunReport> = {}): RunReport => ({ transferred: 3, skipped: 0, bytes: 30, sources_removed: 0, failed: [], ...overrides });
 
@@ -89,46 +92,61 @@ describe("copy and move flow", () => {
     expect(dialog()).toMatchObject({ kind: "result", failed: [], lines: ["bucket does not exist"] });
   });
 
-  it("without conflicts, confirming the plan runs once and refreshes the destination, clearing the source marks", async () => {
+  it("without conflicts, confirming the plan starts one job, closes the dialog and leaves the refresh to the queue", async () => {
     useBrowseStore.getState().toggleMark("left", "a.txt");
     vi.mocked(api.transferPreview).mockResolvedValue(summary());
-    vi.mocked(api.transferExecute).mockResolvedValue(report());
+    vi.mocked(queueApi.transferStart).mockResolvedValue("job-7");
     await startTransfer("copy");
     await confirmPlan();
-    expect(api.transferExecute).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(api.transferExecute).mock.calls[0][2]).toEqual({ per_item: {}, default: null });
-    expect(browseApi.listBucketDir).toHaveBeenCalledWith("p1", "alpha", "in/", null);
+    expect(queueApi.transferStart).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(queueApi.transferStart).mock.calls[0][2]).toEqual({ per_item: {}, default: null });
+    expect(queueEvents.registerJob).toHaveBeenCalledWith("job-7", {
+      source: { kind: "local", path: "/home/me" },
+      dest: { kind: "bucket", bucket: "alpha", prefix: "in/" },
+      mode: "copy",
+    });
+    expect(browseApi.listBucketDir).not.toHaveBeenCalled();
     expect(browseApi.listLocalDir).not.toHaveBeenCalled();
     expect(dialog()).toBeNull();
   });
 
-  it("a move refreshes both panels and clears the source marks", async () => {
+  it("the dialog is closed before the job is even accepted: no busy dialog for a transfer", async () => {
+    vi.mocked(api.transferPreview).mockResolvedValue(summary());
+    let accept: (id: string) => void = () => {};
+    vi.mocked(queueApi.transferStart).mockReturnValue(new Promise((resolve) => (accept = resolve)));
+    await startTransfer("copy");
+    const pending = confirmPlan();
+    expect(dialog()).toBeNull();
+    accept("job-1");
+    await pending;
+    expect(dialog()).toBeNull();
+  });
+
+  it("a move starts a move job and clears the source marks at once", async () => {
     useBrowseStore.getState().toggleMark("left", "a.txt");
     vi.mocked(api.transferPreview).mockResolvedValue(summary());
-    vi.mocked(api.transferExecute).mockResolvedValue(report({ sources_removed: 1 }));
+    vi.mocked(queueApi.transferStart).mockResolvedValue("job-2");
     await startTransfer("move");
     await confirmPlan();
-    expect(browseApi.listLocalDir).toHaveBeenCalledWith("/home/me");
-    expect(browseApi.listBucketDir).toHaveBeenCalled();
+    expect(vi.mocked(queueApi.transferStart).mock.calls[0][1]).toMatchObject({ mode: "move" });
+    expect(queueEvents.registerJob).toHaveBeenCalledWith("job-2", expect.objectContaining({ mode: "move" }));
     expect(useBrowseStore.getState().left.marked).toEqual({});
   });
 
-  it("per-failure items are listed in a result dialog instead of being swallowed", async () => {
+  it("a job that could not be started is shown as an error and no job is registered", async () => {
     vi.mocked(api.transferPreview).mockResolvedValue(summary());
-    vi.mocked(api.transferExecute).mockResolvedValue(report({ failed: [{ name: "a.txt", message: "access denied" }] }));
+    vi.mocked(queueApi.transferStart).mockRejectedValue("no active server profile selected");
     await startTransfer("copy");
     await confirmPlan();
-    expect(dialog()).toMatchObject({ kind: "result", failed: [{ name: "a.txt", message: "access denied" }] });
-    // the panel is still refreshed so the partial result is visible
-    expect(browseApi.listBucketDir).toHaveBeenCalled();
+    expect(dialog()).toMatchObject({ kind: "result", lines: ["no active server profile selected"] });
+    expect(queueEvents.registerJob).not.toHaveBeenCalled();
   });
 
-  it("a rejected run is shown too and the dialog never stays busy", async () => {
+  it("the plan summary no longer carries or shows a too-large count", async () => {
     vi.mocked(api.transferPreview).mockResolvedValue(summary());
-    vi.mocked(api.transferExecute).mockRejectedValue("conflict not resolved");
     await startTransfer("copy");
-    await confirmPlan();
-    expect(dialog()).toMatchObject({ kind: "result", lines: ["conflict not resolved"] });
+    expect(Object.keys(dialog() as object)).not.toContain("too_large_count");
+    expect(JSON.stringify(dialog())).not.toContain("too_large");
   });
 });
 
@@ -137,7 +155,7 @@ describe("conflict resolution", () => {
 
   async function openConflicts() {
     vi.mocked(api.transferPreview).mockResolvedValue(summary(three));
-    vi.mocked(api.transferExecute).mockResolvedValue(report());
+    vi.mocked(queueApi.transferStart).mockResolvedValue("job-1");
     await startTransfer("copy");
     await confirmPlan();
   }
@@ -148,10 +166,10 @@ describe("conflict resolution", () => {
     await resolveConflict("overwrite");
     expect(dialog()).toMatchObject({ kind: "conflicts", index: 1 });
     await resolveConflict("skip");
-    expect(api.transferExecute).not.toHaveBeenCalled();
+    expect(queueApi.transferStart).not.toHaveBeenCalled();
     await resolveConflict("keep_both");
-    expect(api.transferExecute).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(api.transferExecute).mock.calls[0][2]).toEqual({
+    expect(queueApi.transferStart).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(queueApi.transferStart).mock.calls[0][2]).toEqual({
       per_item: { "alpha/in/a.txt": "overwrite", "alpha/in/b.txt": "skip", "alpha/in/c.txt": "keep_both" },
       default: null,
     });
@@ -161,8 +179,8 @@ describe("conflict resolution", () => {
     await openConflicts();
     await resolveConflict("skip");
     await resolveAllConflicts(policy);
-    expect(api.transferExecute).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(api.transferExecute).mock.calls[0][2]).toEqual({ per_item: { "alpha/in/a.txt": "skip" }, default: policy });
+    expect(queueApi.transferStart).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(queueApi.transferStart).mock.calls[0][2]).toEqual({ per_item: { "alpha/in/a.txt": "skip" }, default: policy });
   });
 
   it("Cancel aborts the whole operation before anything runs", async () => {
@@ -170,7 +188,7 @@ describe("conflict resolution", () => {
     await resolveConflict("overwrite");
     cancelDialog();
     expect(dialog()).toBeNull();
-    expect(api.transferExecute).not.toHaveBeenCalled();
+    expect(queueApi.transferStart).not.toHaveBeenCalled();
     expect(browseApi.listBucketDir).not.toHaveBeenCalled();
   });
 });
