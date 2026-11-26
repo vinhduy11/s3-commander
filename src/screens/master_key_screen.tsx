@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { KeyIcon } from "../icons";
 
 export function MasterKeyScreen({ exists, onDone }: { exists: boolean; onDone: () => void }) {
   const [masterKey, setMasterKey] = useState("");
@@ -23,11 +24,19 @@ export function MasterKeyScreen({ exists, onDone }: { exists: boolean; onDone: (
   }
 
   return (
-    <main className="container">
-      <h1>{exists ? "Unlock" : "Create vault"}</h1>
-      <form onSubmit={submit}>
+    <main className="center">
+      <div className="card">
+        <div className="brand">
+          <span className="brand-mark"><KeyIcon /></span>
+          <div>
+            <h1>{exists ? "Unlock" : "Create vault"}</h1>
+            <p className="muted">{exists ? "Enter your master key to open S3 Commander." : "Choose a master key that protects your profile secrets."}</p>
+          </div>
+        </div>
+      <form className="stack" onSubmit={submit}>
         <input
           type="password"
+          autoFocus
           placeholder="Master key"
           value={masterKey}
           onChange={(event) => setMasterKey(event.currentTarget.value)}
@@ -40,9 +49,10 @@ export function MasterKeyScreen({ exists, onDone }: { exists: boolean; onDone: (
             onChange={(event) => setConfirmKey(event.currentTarget.value)}
           />
         )}
-        <button type="submit">{exists ? "Unlock" : "Create"}</button>
+        <button type="submit" className="primary">{exists ? "Unlock" : "Create"}</button>
       </form>
-      {error && <p role="alert">{error}</p>}
+      {error && <p className="alert" role="alert">{error}</p>}
+      </div>
     </main>
   );
 }

@@ -4,7 +4,7 @@ import { useBrowseStore } from "./browse/browse_store";
 import { BrowserScreen } from "./screens/browser_screen";
 import { MasterKeyScreen } from "./screens/master_key_screen";
 import { ProfilesScreen } from "./screens/profiles_screen";
-import "./App.css";
+import "./styles.css";
 
 type VaultStatus = { exists: boolean; unlocked: boolean };
 type View = "browser" | "profiles";

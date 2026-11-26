@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>UI redesign (Modern)</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:820px;margin:32px auto;padding:0 16px;color:#1b1d24}h2{border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:28px}code{background:#f2f3f6;padding:1px 4px;border-radius:4px}</style></head><body>
+<h1>UI redesign: Modern direction</h1>
+<h2>Specs</h2>
+<ul><li>Redo the visual UI of the Tauri MinIO file manager (owner: current UI is "ugly"). Visual and layout only: no behavior, store, Rust, command or keyboard changes, no new features.</li>
+<li>Direction chosen by the owner: Modern (Finder / Linear / Raycast spirit): soft surfaces, subtle borders and shadows, rounded corners, refined type, crisp icons, restrained transitions, light and dark.</li>
+<li>Kept: dual-pane, keyboard-first, dense file rows, offline only (no CDN or web fonts), WebKit-safe CSS, existing tests green.</li></ul>
+<h2>Actions</h2>
+<ul><li>New <code>src/tokens.css</code> (palette, type scale, 4px spacing grid, radius, motion; light and dark via <code>prefers-color-scheme</code>) and <code>src/styles.css</code> (all components); removed the Vite template <code>src/App.css</code>.</li>
+<li>New <code>src/icons.tsx</code>: inline SVG icons (folder, parent, lock, key, server, disk, and file glyphs tinted by type: image, archive, code, media, document, generic).</li>
+<li>Markup-only changes (class names, wrappers, icons) in <code>master_key_screen.tsx</code> (centered card with key mark, primary button, error alert), <code>profiles_screen.tsx</code> (profile list with actions, grid form, empty state, notice and alert), <code>browser_screen.tsx</code> (brand mark, Lock icon, F-key labels split into key and name), <code>file_panel.tsx</code> (source tag with icon, entry icons instead of [brackets], loading spinner in the footer, explicit boolean props).</li>
+<li>Active panel: accent border plus soft shadow; cursor row: accent-soft fill and outline in the active panel, neutral fill in the inactive one; marked rows: orange text and icon. Fixed-width WebKit scrollbar keeps the column header aligned with rows.</li>
+<li>Tests: none changed (no test queries the markup); build and 16 vitest tests pass. Rust untouched.</li>
+<li>Visual check: Vite dev server with a throwaway in-page mock of the Tauri commands (kept outside the repo) and Playwright screenshots in light and dark at 1280x800 and 900x600.</li></ul>
+<h2>Tradeoffs</h2>
+<ul><li>Plain CSS with custom properties instead of a UI framework: zero dependencies, theme is just token overrides.</li>
+<li>System font stack instead of a bundled font: no extra bytes and fully offline, at the cost of slightly different type per OS.</li>
+<li>Hand-drawn inline SVG icons instead of an icon library: no dependency, but a limited glyph set (six file kinds).</li>
+<li>Single indigo accent plus functional colors (orange marks, red errors, green ok) keeps the dense list calm; file-type tints are small and only on icons.</li>
+<li>Rows stay 22px (virtual list constant), so the modern feel comes from surfaces, radius and icons, not from bigger rows.</li>
+<li>Name column shows icon and plain name instead of <code>[dir]</code> brackets (text change in rendering only).</li></ul>
+</body></html>

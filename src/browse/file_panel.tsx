@@ -1,4 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { DiskIcon, ServerIcon } from "../icons";
+import { EntryIcon } from "../icons";
 import { useBrowseStore, type PanelSource, type Side } from "./browse_store";
 import { buildRows, formatDate, formatSize, splitName } from "./navigation";
 import { enterDir, goUp, loadMore, openSource } from "./panel_loader";
@@ -109,6 +111,7 @@ export function FilePanel({ side }: { side: Side }) {
     >
       <div className="phead">
         <span className={`tag${panel.source?.kind === "local" ? " local" : ""}`}>
+          {panel.source?.kind === "local" ? <DiskIcon /> : <ServerIcon />}
           {panel.source?.kind === "local" ? "LOCAL" : "SERVER"}
         </span>
         <select
@@ -155,7 +158,10 @@ export function FilePanel({ side }: { side: Side }) {
                 }}
                 onDoubleClick={() => openRow(index)}
               >
-                <span className="name">{row.isUp ? "[..]" : row.isDir ? `[${base}]` : base}</span>
+                <span className="name">
+                  <EntryIcon isDir={!!row.isDir} isUp={!!row.isUp} ext={ext} />
+                  <span className="label">{row.isUp ? ".." : base}</span>
+                </span>
                 <span>{ext}</span>
                 <span className="num">{row.isUp ? "" : row.isDir ? "<DIR>" : formatSize(row.size)}</span>
                 <span className="date">{row.isUp || row.isDir ? "" : formatDate(row.modified)}</span>
@@ -164,7 +170,7 @@ export function FilePanel({ side }: { side: Side }) {
           })}
         </div>
       </div>
-      <div className="pfoot" role={panel.error ? "alert" : undefined}>
+      <div className={`pfoot${panel.loading && !panel.error ? " loading" : ""}`} role={panel.error ? "alert" : undefined}>
         {panel.error
           ? panel.error
           : panel.loading

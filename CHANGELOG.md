@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- UI redesign, "Modern" direction (visual and layout only, no behavior change): design tokens with light and dark themes (`prefers-color-scheme`), system font stack (offline, no web fonts), inline SVG icons for folders and file types, restyled master-key screen, profiles list/form, top bar, dual-pane header/columns/footer with clear cursor, marked and active-panel states, loading spinner, disabled F-key bar. `App.css` replaced by `tokens.css` + `styles.css`.
+
 ### Added
 - Browse (roadmap step 2): dual-pane UI with a Local panel and a bucket panel per side (Name/Ext/Size/Date, virtualised list, Tab/arrows/Enter/Backspace/Space), profile switcher and Lock in the top bar, disabled function-key bar.
 - Rust `s3` module (aws-sdk-s3 with endpoint, path-style, static credentials, checksums only when required; paginated `list_dir`; readable error mapping), `local` module, `AppError`.

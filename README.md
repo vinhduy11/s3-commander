@@ -30,7 +30,9 @@ npm test               # vitest: panel store and navigation helpers (no network)
 ├── src/                  # React + TypeScript frontend
 │   ├── main.tsx          # React entry
 │   ├── App.tsx           # vault status, view switch (browser / profiles), lock
-│   ├── App.css           # styles, including the dual-pane browser
+│   ├── tokens.css        # design tokens (colors, type, spacing, radius) with light and dark themes
+│   ├── styles.css        # all component styles, built on tokens.css (imported by App.tsx)
+│   ├── icons.tsx         # inline SVG icons: folder, parent, file types, lock, key, server, disk
 │   ├── screens/
 │   │   ├── master_key_screen.tsx  # create / unlock the vault
 │   │   ├── profiles_screen.tsx    # add, edit, delete, test, duplicate profiles

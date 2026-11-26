@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { LockIcon, ServerIcon } from "../icons";
 import { FilePanel } from "../browse/file_panel";
 import { listBuckets, listProfiles, type Profile } from "../browse/browse_api";
 import { useBrowseStore } from "../browse/browse_store";
@@ -53,7 +54,7 @@ export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: 
   return (
     <div className="browser">
       <div className="bar">
-        <span className="title">S3 Commander</span>
+        <span className="title"><span className="brand-mark"><ServerIcon /></span>S3 Commander</span>
         {topError && <span className="bar-error" role="alert">{topError}</span>}
         <label className="muted" htmlFor="profile-switcher">Profile</label>
         <select
@@ -67,16 +68,21 @@ export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: 
           ))}
         </select>
         <button type="button" onClick={onManageProfiles}>Profiles</button>
-        <button type="button" onClick={onLock}>Lock</button>
+        <button type="button" onClick={onLock}><LockIcon />Lock</button>
       </div>
       <div className="panels">
         <FilePanel side="left" />
         <FilePanel side="right" />
       </div>
       <div className="fkeys">
-        {FUNCTION_KEYS.map((label) => (
-          <button key={label} type="button" disabled title="Not available yet">{label}</button>
-        ))}
+        {FUNCTION_KEYS.map((label) => {
+          const [key, ...rest] = label.split(" ");
+          return (
+            <button key={label} type="button" disabled title="Not available yet">
+              <span className="fk">{key}</span>{rest.join(" ")}
+            </button>
+          );
+        })}
       </div>
       <div className="muted hint">Keys: Tab switches panel, Up/Down/PageUp/PageDown/Home/End move, Enter opens, Backspace goes up, Space marks.</div>
     </div>
