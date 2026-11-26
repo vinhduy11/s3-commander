@@ -158,6 +158,12 @@ async fn local_list_dir(path: String) -> Result<local::LocalListing, AppError> {
     local::list_dir(&local::start_dir(&path))
 }
 
+/// Folder or file, parent and name of paths dropped from the OS file manager.
+#[tauri::command]
+async fn local_stat_paths(paths: Vec<String>) -> Result<Vec<local::DroppedPath>, AppError> {
+    local::stat_paths(&paths)
+}
+
 /// The S3 client when any of the locations is a bucket (needs `profile_id`), otherwise none.
 fn client_for_locations(
     vault: &VaultState,
@@ -256,6 +262,7 @@ pub fn run() {
             s3_list_buckets,
             s3_list_dir,
             local_list_dir,
+            local_stat_paths,
             transfer_preview,
             transfer_execute,
             items_delete,

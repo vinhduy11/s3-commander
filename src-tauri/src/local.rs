@@ -25,6 +25,34 @@ pub struct LocalListing {
     pub entries: Vec<LocalEntry>,
 }
 
+/// One path dropped from the OS file manager, split so it can be used as an item of its folder.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct DroppedPath {
+    pub parent: String,
+    pub name: String,
+    pub is_dir: bool,
+}
+
+/// Which of the given absolute paths are folders (symlinks followed), and each one's parent and name.
+/// A missing or unreadable path, or a path without a parent and name (the root), is an error.
+pub fn stat_paths(paths: &[String]) -> Result<Vec<DroppedPath>, AppError> {
+    paths
+        .iter()
+        .map(|raw| {
+            let path = Path::new(raw);
+            let metadata = fs::metadata(path).map_err(|err| describe_io_error(&err, path))?;
+            match (path.parent(), path.file_name()) {
+                (Some(parent), Some(name)) => Ok(DroppedPath {
+                    parent: parent.to_string_lossy().into_owned(),
+                    name: name.to_string_lossy().into_owned(),
+                    is_dir: metadata.is_dir(),
+                }),
+                _ => Err(AppError::Local(format!("cannot transfer {raw}"))),
+            }
+        })
+        .collect()
+}
+
 /// An empty path means the user's home directory (falls back to `/`).
 pub fn start_dir(path: &str) -> std::path::PathBuf {
     if path.is_empty() {
@@ -79,6 +107,28 @@ mod tests {
 
     fn names(listing: &LocalListing) -> Vec<&str> {
         listing.entries.iter().map(|entry| entry.name.as_str()).collect()
+    }
+
+    #[test]
+    fn stat_paths_splits_parent_and_name_and_tells_dirs_from_files() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(root.path().join("album")).unwrap();
+        std::fs::write(root.path().join("a.txt"), "x").unwrap();
+        let paths = vec![root.path().join("album").to_string_lossy().into_owned(), root.path().join("a.txt").to_string_lossy().into_owned()];
+        let found = stat_paths(&paths).unwrap();
+        let parent = root.path().to_string_lossy().into_owned();
+        assert_eq!(found, vec![
+            DroppedPath { parent: parent.clone(), name: "album".into(), is_dir: true },
+            DroppedPath { parent, name: "a.txt".into(), is_dir: false },
+        ]);
+    }
+
+    #[test]
+    fn stat_paths_reports_a_missing_path_and_refuses_a_root() {
+        let root = tempfile::tempdir().unwrap();
+        let missing = root.path().join("gone").to_string_lossy().into_owned();
+        assert!(stat_paths(&[missing]).is_err());
+        assert!(stat_paths(&["/".to_string()]).is_err());
     }
 
     #[test]

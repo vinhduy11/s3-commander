@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { LockIcon, ServerIcon } from "../icons";
 import { ContextMenu } from "../browse/context_menu_view";
+import { DragLayer } from "../browse/drag_drop_view";
+import { listenOsDrop } from "../browse/os_drop";
 import { FilePanel } from "../browse/file_panel";
 import { listBuckets, listProfiles, type Profile } from "../browse/browse_api";
 import { useBrowseStore } from "../browse/browse_store";
@@ -64,6 +66,12 @@ export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: 
     };
   }, [profileId]);
 
+  // Drops from the OS file manager (Tauri webview drag-drop event) onto a server panel.
+  useEffect(() => {
+    const unlisten = listenOsDrop();
+    return () => void unlisten.then((stop) => stop());
+  }, []);
+
   // Function keys act on the active panel; open dialogs handle their own keys.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -115,6 +123,7 @@ export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: 
       </div>
       <div className="muted hint">Keys: Tab switches panel, Up/Down/PageUp/PageDown/Home/End move, Enter opens, Backspace goes up, Space marks, F2 renames, F5 copies, F6 moves, F7 creates a folder, F8 deletes.</div>
       <ContextMenu />
+      <DragLayer />
       <OpsDialogs />
     </div>
   );

@@ -1,0 +1,19 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Drag and drop (step 3b)</title>
+<style>body{font:14px/1.5 system-ui;max-width:860px;margin:2rem auto;padding:0 1rem}code{background:#eee;padding:0 3px}</style></head><body>
+<h1>Drag and drop (roadmap step 3b)</h1>
+<h2>Specs</h2>
+<ul><li>In-app drag between and within the two panels: plain drop copies, Shift moves, folder row targets that folder, same panel only onto a folder row (move).</li>
+<li>Refuse folder onto itself or its child, onto "..", and onto a panel without a source; never drag "..".</li>
+<li>Ghost, target highlight, copy/move cue, not-allowed cue; Esc cancels; auto-scroll; click, double-click, mark and context menu unchanged.</li>
+<li>Drop from the OS file manager onto a server panel with real paths; same planner and dialogs as F5.</li></ul>
+<h2>Actions</h2>
+<ul><li>New <code>src/browse/drag_drop_logic.ts</code>, <code>drop_locations.ts</code>, <code>drag_drop.ts</code>, <code>drag_drop_view.tsx</code>, <code>os_drop.ts</code> with vitest suites.</li>
+<li><code>ops_flow.ts</code>: <code>startTransferOf(operation, mode)</code> extracted from <code>startTransfer</code> (same dialogs); a same-panel move refreshes the panel once.</li>
+<li><code>file_panel.tsx</code>: data attributes, <code>panelDragProps</code>, <code>useDropHighlight</code> (small additive changes); <code>browser_screen.tsx</code>: <code>DragLayer</code> and the OS-drop listener; <code>styles.css</code>: separate drag block.</li>
+<li>Rust: command <code>local_stat_paths</code> (<code>local::stat_paths</code>, tempdir tests). Planner commands are unchanged. <code>tauri.conf.json</code>: <code>dragDropEnabled: true</code> (already the default).</li></ul>
+<h2>Tradeoffs</h2>
+<ul><li><b>Pointer events over HTML5 DnD</b>: HTML5 DnD is unreliable in the Tauri webview on WebKit/WebKitGTK and conflicts with Tauri's native handler. Cost: ghost, hit-testing, auto-scroll and Esc are implemented by hand.</li>
+<li><b>One parent folder per OS drop</b>: the planner takes items relative to one source directory; a mixed-parent drop is refused with a message instead of extending the planner. A Finder multi-selection is always one folder.</li>
+<li>OS drops always copy (the event carries no modifier keys). Dragging out of the app is not supported.</li>
+<li><b>Not verified without a real window</b>: the real Tauri window, an actual Finder/Files drop and the physical-to-CSS position mapping on a real Retina display, WebKit/WebKitGTK rendering and pointer behavior, a real server, real keyboard and mouse use. Verified: vitest, cargo tests, and Chromium mock screenshots with a mocked <code>__TAURI_INTERNALS__</code> and real Playwright mouse drags.</li></ul>
+</body></html>

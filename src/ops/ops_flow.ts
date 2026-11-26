@@ -17,7 +17,7 @@ import {
   type TransferRequest,
 } from "./ops_api";
 import { useOpsStore, type Dialog } from "./ops_store";
-import { cursorTarget, otherSide, panelLocation, resolveOperation, selectTargets } from "./ops_targets";
+import { cursorTarget, otherSide, panelLocation, resolveOperation, selectTargets, type Operation } from "./ops_targets";
 
 const browse = () => useBrowseStore.getState();
 const currentDialog = () => useOpsStore.getState().dialog;
@@ -48,6 +48,17 @@ export async function startTransfer(mode: Mode, side: Side = browse().active): P
   if (currentDialog()) return;
   const operation = resolveOperation(browse(), side);
   if ("error" in operation) return showError(operation.error);
+  await planTransfer(operation, mode);
+}
+
+/** Entry point for drag and drop: the same plan, conflict, busy and result dialogs as F5 and F6. */
+export async function startTransferOf(operation: Operation, mode: Mode): Promise<void> {
+  if (currentDialog()) return;
+  await planTransfer(operation, mode);
+}
+
+async function planTransfer(operation: Operation, mode: Mode): Promise<void> {
+  const { side } = operation;
   const request: TransferRequest = { source: operation.source, dest: operation.dest, items: operation.items, mode };
   show({ kind: "busy", label: "Planning..." });
   try {
@@ -68,7 +79,7 @@ async function executeTransfer(side: Side, destSide: Side, request: TransferRequ
     outcome = { kind: "result", title: "Error", lines: [String(err)], failed: [] };
   }
   browse().clearMarks(side);
-  const refreshed = request.mode === "move" ? [side, destSide] : [destSide];
+  const refreshed = request.mode === "move" && side !== destSide ? [side, destSide] : [destSide];
   await Promise.all(refreshed.map((target) => refresh(target)));
   show(outcome);
 }

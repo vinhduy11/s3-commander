@@ -6,6 +6,7 @@ import { buildRows, formatDate, formatSize, splitName } from "./navigation";
 import { goUp, loadAll, loadMore, openRowAt, openSource } from "./panel_loader";
 import { type SortKey } from "./sort";
 import { openEmptyMenu, openMenuAtCursor, openRowMenu } from "./context_menu";
+import { panelDragProps, useDropHighlight } from "./drag_drop";
 
 const ROW_HEIGHT = 22;
 const OVERSCAN_ROWS = 8;
@@ -29,6 +30,7 @@ function parseSource(value: string): PanelSource | null {
 export function FilePanel({ side }: { side: Side }) {
   const panel = useBrowseStore((state) => state[side]);
   const isActive = useBrowseStore((state) => state.active === side);
+  const drop = useDropHighlight(side);
   const buckets = useBrowseStore((state) => state.buckets);
   const { setCursor, toggleMark, setActive, setScrollTop, sortBy } = useBrowseStore.getState();
 
@@ -114,7 +116,8 @@ export function FilePanel({ side }: { side: Side }) {
     <div
       id={`panel-${side}`}
       ref={panelRef}
-      className={`panel${isActive ? " active" : ""}`}
+      className={`panel${isActive ? " active" : ""}${drop.panelCue ? ` drop-${drop.panelCue}` : ""}`}
+      {...panelDragProps(side)}
       tabIndex={0}
       onKeyDown={onKeyDown}
       onMouseDown={() => setActive(side)}
@@ -168,10 +171,13 @@ export function FilePanel({ side }: { side: Side }) {
           {rows.slice(first, last).map((row, offset) => {
             const index = first + offset;
             const { base, ext } = row.isDir || row.isUp ? { base: row.name, ext: "" } : splitName(row.name);
-            const classes = ["row", row.isDir ? "dir" : "", index === panel.cursor ? "sel" : "", panel.marked[row.name] ? "mark" : ""];
+            const classes = ["row", row.isDir ? "dir" : "", index === panel.cursor ? "sel" : "", panel.marked[row.name] ? "mark" : "", drop.rowName === row.name ? `drop-row drop-${drop.rowCue}` : ""];
             return (
               <div
                 key={row.isUp ? ".." : row.name}
+                data-row-name={row.isUp ? ".." : row.name}
+                data-row-dir={row.isDir ? "true" : undefined}
+                data-row-up={row.isUp ? "true" : undefined}
                 className={classes.join(" ")}
                 style={{ position: "absolute", top: index * ROW_HEIGHT, height: ROW_HEIGHT, left: 0, right: 0 }}
                 onClick={() => {

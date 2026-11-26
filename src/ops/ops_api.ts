@@ -51,3 +51,8 @@ export const createFolder = (profileId: string | null, location: Location, name:
 
 export const renameItem = (profileId: string | null, location: Location, item: TopItem, newName: string) =>
   invoke<RunReport>("item_rename", { profileId, location, item, newName });
+
+/** A path dropped from the OS file manager, split into its folder and name. */
+export type DroppedPath = { parent: string; name: string; is_dir: boolean };
+
+export const localStatPaths = (paths: string[]) => invoke<DroppedPath[]>("local_stat_paths", { paths });

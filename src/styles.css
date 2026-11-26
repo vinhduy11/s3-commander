@@ -169,3 +169,22 @@ button.danger-fill:hover:not(:disabled) { background: var(--danger); border-colo
 .ctx-item[aria-checked="true"] .ctx-label { font-weight: 600; }
 .ctx-item[data-id="sort-reverse"] { margin-bottom: 0; }
 .ctx-key { font: 600 var(--text-xs) var(--font-mono); color: var(--muted); }
+
+/* ---- drag and drop (pointer events, see src/browse/drag_drop.ts) ---- */
+.list .row { -webkit-user-select: none; user-select: none; }
+body.dragging { cursor: grabbing; -webkit-user-select: none; user-select: none; }
+body.dragging * { cursor: grabbing !important; }
+.drag-ghost { position: fixed; z-index: 30; pointer-events: none; display: inline-flex; flex-direction: column; gap: 2px; max-width: 260px; padding: 4px var(--sp-2); background: var(--surface); border: 1px solid var(--accent); border-radius: var(--radius); box-shadow: var(--shadow-modal); font: 600 var(--text-sm) var(--font-ui); color: var(--fg); }
+.drag-ghost .drag-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drag-ghost .drag-cue { font: 700 var(--text-xs) var(--font-ui); text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); }
+.drag-ghost.move { border-color: var(--mark); }
+.drag-ghost.move .drag-cue { color: var(--mark); }
+.drag-ghost.refused { border-color: var(--danger); background: var(--danger-soft); }
+.drag-ghost.refused .drag-cue { color: var(--danger); }
+.panel.drop-copy, .panel.active.drop-copy { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.panel.drop-move, .panel.active.drop-move { border-color: var(--mark); box-shadow: 0 0 0 2px var(--mark); }
+.panel.drop-refused, .panel.active.drop-refused { border-color: var(--danger); box-shadow: 0 0 0 2px var(--danger); }
+.panel .list .row.drop-row.drop-copy { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+.panel .list .row.drop-row.drop-move { background: var(--warn-soft); box-shadow: inset 0 0 0 2px var(--mark); }
+.panel .list .row.drop-row.drop-refused { background: var(--danger-soft); box-shadow: inset 0 0 0 2px var(--danger); }
+.drag-toast { position: fixed; z-index: 30; left: 50%; bottom: var(--sp-6); transform: translateX(-50%); max-width: min(480px, calc(100% - var(--sp-6))); padding: var(--sp-2) var(--sp-3); background: var(--surface); border: 1px solid var(--danger); border-radius: var(--radius-lg); box-shadow: var(--shadow-modal); color: var(--fg); font-size: var(--text-md); pointer-events: none; }

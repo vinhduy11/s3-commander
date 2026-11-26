@@ -50,6 +50,11 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 │       ├── file_panel.tsx         # one panel: source selector, sortable column headers, virtualised list, keyboard, footer hint
 │       ├── context_menu.ts        # right-click menu: state, data-driven item list, selection rules, position clamp
 │       ├── context_menu_view.tsx  # menu surface (role=menu), keyboard, close rules
+│       ├── drag_drop_logic.ts     # pure drag rules: threshold, drag set, hit test, drop target, refusals, auto-scroll step
+│       ├── drop_locations.ts      # pure location helpers (child folder, same place, inside itself)
+│       ├── drag_drop.ts           # pointer-event drag controller + ghost/hover store (no HTML5 DnD)
+│       ├── drag_drop_view.tsx     # drag ghost and refusal toast
+│       ├── os_drop.ts             # OS file manager drop: Tauri webview drag-drop event, position mapping, upload through the F5 flow
 │       └── *.test.ts(x)           # vitest tests
 │   └── ops/                       # file operations (step 3a)
 │       ├── ops_api.ts             # typed wrappers over the operation commands and their DTO types
@@ -70,6 +75,7 @@ npm test               # vitest: panel store, navigation helpers, operation targ
         ├── profile_rules.rs # the one place that validates and normalizes a profile input (per-field errors); no Tauri dependency
         ├── s3.rs         # aws-sdk-s3 client from a profile, list_buckets, list_dir, error mapping; no Tauri dependency
         ├── local.rs      # local_list_dir over std::fs; no Tauri dependency
+        │                     # (also local_stat_paths: folder/file, parent and name of OS-dropped paths)
         ├── transfer_plan.rs  # pure transfer planner: key mapping, validation, conflicts, resolutions, summary, delete batches
         ├── transfer_run.rs   # operation engine: expand, probe, resolve, run, move = copy + verify + delete; delete, new folder, rename
         ├── s3_ops.rs     # object ops: list all, head, put, get, CopyObject / UploadPartCopy, DeleteObjects in batches
