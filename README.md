@@ -35,8 +35,12 @@ npm test               # vitest: panel store and navigation helpers (no network)
 │   ├── icons.tsx         # inline SVG icons: folder, parent, file types, lock, key, server, disk
 │   ├── screens/
 │   │   ├── master_key_screen.tsx  # create / unlock the vault
-│   │   ├── profiles_screen.tsx    # add, edit, delete, test, duplicate profiles
+│   │   ├── profiles_screen.tsx    # add, edit, delete, test, duplicate profiles; shows Rust's per-field save errors
+│   │   ├── profile_form.tsx       # profile form: inline per-field errors, Save disabled while invalid, http warning
 │   │   └── browser_screen.tsx     # top bar (profile switcher, Lock), two panels, disabled F-key bar
+│   ├── profile/
+│   │   ├── validate_profile.ts    # profile rules (mirror of profile_rules.rs) for instant feedback
+│   │   └── validation_cases.json  # shared test table, read by both the vitest and the Rust tests
 │   └── browse/
 │       ├── browse_store.ts        # Zustand store: one slice per panel, S3 reset on profile switch / lock
 │       ├── navigation.ts          # pure path, row and formatting helpers
@@ -52,7 +56,8 @@ npm test               # vitest: panel store and navigation helpers (no network)
     └── src/
         ├── main.rs       # binary entry
         ├── lib.rs        # Tauri builder, vault + client-cache state, thin commands
-        ├── app_error.rs  # AppError: the one error type the UI sees (serialized as a message)
+        ├── app_error.rs  # AppError: the one error type the UI sees (serialized as a message); ProfileSaveError with per-field errors
+        ├── profile_rules.rs # the one place that validates and normalizes a profile input (per-field errors); no Tauri dependency
         ├── s3.rs         # aws-sdk-s3 client from a profile, list_buckets, list_dir, error mapping; no Tauri dependency
         ├── local.rs      # local_list_dir over std::fs; no Tauri dependency
         └── vault.rs      # encrypted profile vault (Argon2id + XChaCha20-Poly1305), no Tauri dependency

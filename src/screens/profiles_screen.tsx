@@ -2,10 +2,13 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ServerIcon } from "../icons";
 import { duplicateProfile, testProfile, type Profile } from "../browse/browse_api";
+import type { FieldErrors } from "../profile/validate_profile";
+import { ProfileForm, type ProfileFormValues } from "./profile_form";
 
-type ProfileForm = Profile & { secret_key: string };
+// Rust returns { message, fields: [{ field, message }] } on a failed save; other commands a string.
+type SaveFailure = { message?: string; fields?: { field: keyof FieldErrors; message: string }[] };
 
-const EMPTY_FORM: ProfileForm = {
+const EMPTY_FORM: ProfileFormValues = {
   id: "",
   name: "",
   endpoint: "",
@@ -16,9 +19,11 @@ const EMPTY_FORM: ProfileForm = {
 
 export function ProfilesScreen({ onBack, onLock }: { onBack: () => void; onLock: () => void }) {
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [form, setForm] = useState<ProfileForm | null>(null);
+  const [form, setForm] = useState<ProfileFormValues | null>(null);
+  const [serverErrors, setServerErrors] = useState<FieldErrors>({});
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [savedId, setSavedId] = useState("");
 
   async function reload() {
     try {
@@ -32,16 +37,20 @@ export function ProfilesScreen({ onBack, onLock }: { onBack: () => void; onLock:
     reload();
   }, []);
 
-  async function save(event: React.FormEvent) {
-    event.preventDefault();
-    if (!form) return;
+  async function save(values: ProfileFormValues) {
     try {
-      await invoke("profile_save", { profile: form });
+      const saved = await invoke<Profile>("profile_save", { profile: values });
       setForm(null);
+      setServerErrors({});
       setError("");
+      setNotice(`Saved "${saved.name}".`);
+      setSavedId(saved.id);
       await reload();
     } catch (err) {
-      setError(String(err));
+      const failure = err as SaveFailure;
+      const fields = Object.fromEntries((failure.fields ?? []).map((item) => [item.field, item.message]));
+      setServerErrors(fields);
+      setError(Object.keys(fields).length > 0 ? "" : failure.message ?? String(err));
     }
   }
 
@@ -55,6 +64,7 @@ export function ProfilesScreen({ onBack, onLock }: { onBack: () => void; onLock:
   }
 
   async function test(profileId: string) {
+    setSavedId("");
     setNotice("Testing...");
     setError("");
     try {
@@ -75,16 +85,13 @@ export function ProfilesScreen({ onBack, onLock }: { onBack: () => void; onLock:
     }
   }
 
-  const field = (key: keyof ProfileForm, placeholder: string, type = "text", full = false) => (
-    <input
-      className={full ? "full" : undefined}
-      aria-label={placeholder}
-      type={type}
-      placeholder={placeholder}
-      value={form?.[key] ?? ""}
-      onChange={(event) => setForm({ ...(form as ProfileForm), [key]: event.currentTarget.value })}
-    />
-  );
+  function openForm(values: ProfileFormValues) {
+    setServerErrors({});
+    setError("");
+    setSavedId("");
+    setNotice("");
+    setForm(values);
+  }
 
   return (
     <main className="page">
@@ -93,9 +100,14 @@ export function ProfilesScreen({ onBack, onLock }: { onBack: () => void; onLock:
           <h1>Profiles</h1>
           <button onClick={onBack}>Back</button>
           <button onClick={onLock}>Lock</button>
-          <button className="primary" onClick={() => setForm(EMPTY_FORM)}>Add profile</button>
+          <button className="primary" onClick={() => openForm(EMPTY_FORM)}>Add profile</button>
         </div>
-        {notice && <p className="notice" role="status">{notice}</p>}
+        {notice && (
+          <p className="notice" role="status">
+            {notice}
+            {savedId && <button onClick={() => test(savedId)}>Test connection</button>}
+          </p>
+        )}
         {error && <p className="alert" role="alert">{error}</p>}
         {profiles.length === 0 && !form && <p className="empty">No profiles yet. Add one to connect to a MinIO server.</p>}
         {profiles.length > 0 && (
@@ -108,7 +120,7 @@ export function ProfilesScreen({ onBack, onLock }: { onBack: () => void; onLock:
                   <span className="profile-meta">{profile.endpoint} ({profile.access_key}, {profile.region})</span>
                 </span>
                 <span className="profile-actions">
-                  <button onClick={() => setForm({ ...profile, secret_key: "" })}>Edit</button>
+                  <button onClick={() => openForm({ ...profile, secret_key: "" })}>Edit</button>
                   <button onClick={() => test(profile.id)}>Test</button>
                   <button onClick={() => duplicate(profile.id)}>Duplicate</button>
                   <button className="danger" onClick={() => remove(profile.id)}>Delete</button>
@@ -118,17 +130,14 @@ export function ProfilesScreen({ onBack, onLock }: { onBack: () => void; onLock:
           </ul>
         )}
         {form && (
-          <form className="form" onSubmit={save}>
-            {field("name", "Name")}
-            {field("region", "Region")}
-            {field("endpoint", "Endpoint URL", "text", true)}
-            {field("access_key", "Access key")}
-            {field("secret_key", form.id ? "Secret key (blank keeps current)" : "Secret key", "password")}
-            <div className="form-actions">
-              <button type="button" onClick={() => setForm(null)}>Cancel</button>
-              <button type="submit" className="primary">Save</button>
-            </div>
-          </form>
+          <ProfileForm
+            key={form.id || "new"}
+            initial={form}
+            others={profiles.filter((profile) => profile.id !== form.id).map((profile) => profile.name)}
+            serverErrors={serverErrors}
+            onSubmit={save}
+            onCancel={() => setForm(null)}
+          />
         )}
       </div>
     </main>

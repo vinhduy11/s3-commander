@@ -1,0 +1,915 @@
+{
+ "cases": [
+  {
+   "label": "valid minimal",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [],
+   "normalized": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "region": "us-east-1"
+   }
+  },
+  {
+   "label": "name and keys are trimmed",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "  Dev  ",
+    "endpoint": "http://localhost:9000",
+    "access_key": " ak ",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [],
+   "normalized": {
+    "name": "Dev",
+    "access_key": "ak"
+   }
+  },
+  {
+   "label": "name empty",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "name"
+   ]
+  },
+  {
+   "label": "name blank spaces",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "   ",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "name"
+   ]
+  },
+  {
+   "label": "name 64 chars ok",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": []
+  },
+  {
+   "label": "name 65 chars",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "name"
+   ]
+  },
+  {
+   "label": "name 64 multibyte chars ok",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": []
+  },
+  {
+   "label": "name duplicate same case",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Prod",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "name"
+   ]
+  },
+  {
+   "label": "name duplicate other case",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "pROD",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "name"
+   ]
+  },
+  {
+   "label": "name duplicate after trim",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": " prod ",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "name"
+   ]
+  },
+  {
+   "label": "edit keeps its own name",
+   "isNew": false,
+   "others": [],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "",
+    "region": ""
+   },
+   "errors": []
+  },
+  {
+   "label": "edit cannot take another name",
+   "isNew": false,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "prod",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "",
+    "region": ""
+   },
+   "errors": [
+    "name"
+   ]
+  },
+  {
+   "label": "endpoint https ok",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "https://minio.example.com",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": []
+  },
+  {
+   "label": "endpoint https with port ok",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "https://minio.example.com:9443",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [],
+   "normalized": {
+    "endpoint": "https://minio.example.com:9443"
+   }
+  },
+  {
+   "label": "endpoint trailing slash removed",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000/",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [],
+   "normalized": {
+    "endpoint": "http://localhost:9000"
+   }
+  },
+  {
+   "label": "endpoint trimmed",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "  https://minio.example.com/  ",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [],
+   "normalized": {
+    "endpoint": "https://minio.example.com"
+   }
+  },
+  {
+   "label": "endpoint host is lowercased",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "HTTPS://MinIO.Example.COM",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [],
+   "normalized": {
+    "endpoint": "https://minio.example.com"
+   }
+  },
+  {
+   "label": "endpoint ip with port ok",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://10.0.0.5:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": []
+  },
+  {
+   "label": "endpoint empty",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "endpoint"
+   ]
+  },
+  {
+   "label": "endpoint without scheme",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "endpoint"
+   ]
+  },
+  {
+   "label": "endpoint bare host",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "minio.example.com",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "endpoint"
+   ]
+  },
+  {
+   "label": "endpoint ftp scheme",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "ftp://minio.example.com",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "endpoint"
+   ]
+  },
+  {
+   "label": "endpoint no host",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "endpoint"
+   ]
+  },
+  {
+   "label": "endpoint user info",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://user:pass@minio.example.com",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "endpoint"
+   ]
+  },
+  {
+   "label": "endpoint user only",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://user@minio.example.com",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "endpoint"
+   ]
+  },
+  {
+   "label": "endpoint query",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://minio.example.com?x=1",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "endpoint"
+   ]
+  },
+  {
+   "label": "endpoint fragment",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://minio.example.com#top",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "endpoint"
+   ]
+  },
+  {
+   "label": "endpoint port zero",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://minio.example.com:0",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "endpoint"
+   ]
+  },
+  {
+   "label": "endpoint port too large",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://minio.example.com:65536",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "endpoint"
+   ]
+  },
+  {
+   "label": "endpoint port max ok",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://minio.example.com:65535",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": []
+  },
+  {
+   "label": "endpoint port non numeric",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://minio.example.com:abc",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "endpoint"
+   ]
+  },
+  {
+   "label": "endpoint inner space",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://minio .example.com",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "endpoint"
+   ]
+  },
+  {
+   "label": "endpoint path",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://minio.example.com/base",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "endpoint"
+   ]
+  },
+  {
+   "label": "endpoint double slash path",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://minio.example.com//",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "endpoint"
+   ]
+  },
+  {
+   "label": "access key empty",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "access_key"
+   ]
+  },
+  {
+   "label": "access key blank",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "   ",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "access_key"
+   ]
+  },
+  {
+   "label": "access key inner space",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "ab cd",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "access_key"
+   ]
+  },
+  {
+   "label": "access key control char",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "ab\u0007cd",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "access_key"
+   ]
+  },
+  {
+   "label": "access key inner newline",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "ab\ncd",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "access_key"
+   ]
+  },
+  {
+   "label": "secret empty on create",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "",
+    "region": ""
+   },
+   "errors": [
+    "secret_key"
+   ]
+  },
+  {
+   "label": "secret empty on edit keeps stored",
+   "isNew": false,
+   "others": [],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "",
+    "region": ""
+   },
+   "errors": []
+  },
+  {
+   "label": "secret with spaces kept as is",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": " sp ace ",
+    "region": ""
+   },
+   "errors": []
+  },
+  {
+   "label": "secret with newline",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "abc\ndef",
+    "region": ""
+   },
+   "errors": [
+    "secret_key"
+   ]
+  },
+  {
+   "label": "secret with tab",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "abc\tdef",
+    "region": ""
+   },
+   "errors": [
+    "secret_key"
+   ]
+  },
+  {
+   "label": "secret with control char",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "abc\u0000def",
+    "region": ""
+   },
+   "errors": [
+    "secret_key"
+   ]
+  },
+  {
+   "label": "region empty defaults",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [],
+   "normalized": {
+    "region": "us-east-1"
+   }
+  },
+  {
+   "label": "region blank defaults",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "   "
+   },
+   "errors": [],
+   "normalized": {
+    "region": "us-east-1"
+   }
+  },
+  {
+   "label": "region ok",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "eu-west-2"
+   },
+   "errors": [],
+   "normalized": {
+    "region": "eu-west-2"
+   }
+  },
+  {
+   "label": "region uppercase",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "US-EAST-1"
+   },
+   "errors": [
+    "region"
+   ]
+  },
+  {
+   "label": "region underscore",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "us_east"
+   },
+   "errors": [
+    "region"
+   ]
+  },
+  {
+   "label": "region space inside",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "us east"
+   },
+   "errors": [
+    "region"
+   ]
+  },
+  {
+   "label": "region 32 chars ok",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "errors": []
+  },
+  {
+   "label": "region 33 chars",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "Dev",
+    "endpoint": "http://localhost:9000",
+    "access_key": "test-access",
+    "secret_key": "test-secret-value",
+    "region": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "errors": [
+    "region"
+   ]
+  },
+  {
+   "label": "several fields at once",
+   "isNew": true,
+   "others": [
+    "Prod"
+   ],
+   "input": {
+    "name": "",
+    "endpoint": "nope",
+    "access_key": "",
+    "secret_key": "test-secret-value",
+    "region": ""
+   },
+   "errors": [
+    "access_key",
+    "endpoint",
+    "name"
+   ]
+  }
+ ]
+}

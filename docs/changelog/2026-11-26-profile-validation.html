@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Profile validation</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:860px;margin:2rem auto;padding:0 1rem;color:#1b1d24}h2{border-bottom:1px solid #d9dce3;padding-bottom:.2rem}code{background:#f2f3f6;padding:0 .25rem;border-radius:4px}</style></head>
+<body>
+<h1>Profile validation (add and edit)</h1>
+<h2>Specs</h2>
+<p>Owner requirement: when adding a profile there must be validation. Rust is authoritative and returns per-field errors; the form mirrors the rules for instant inline feedback. Rules: name required, trimmed, max 64, unique case-insensitively (a profile may keep its own name); endpoint is an http or https URL with a host, no user info, query, fragment or path, port 1..65535, normalized (trimmed, no trailing slash); <code>http://</code> allowed with a non-blocking warning; access key required without whitespace or control characters; secret key required on create, blank on edit keeps the stored one, never trimmed, no control characters; region optional (default <code>us-east-1</code>), <code>[a-z0-9-]</code> up to 32. Connectivity is not checked by Save; the secret never appears in an error.</p>
+<h2>Actions</h2>
+<ul>
+<li>New <code>src-tauri/src/profile_rules.rs</code>: <code>validate_profile_input</code> (the one rule set) and <code>FieldError</code>. Uses the <code>url</code> crate (already in the lock file) so parsing matches the browser's <code>URL</code>.</li>
+<li><code>vault.rs</code>: <code>save_profile</code> calls it; <code>VaultError::Validation</code> replaces the old required-field check.</li>
+<li><code>app_error.rs</code> and <code>lib.rs</code>: <code>ProfileSaveError {message, fields}</code> is the error of <code>profile_save</code> only.</li>
+<li>Frontend: <code>src/profile/validate_profile.ts</code>, new <code>src/screens/profile_form.tsx</code> (inline errors after a field is touched, Save disabled while invalid, http warning, server errors per field), <code>profiles_screen.tsx</code> (saved notice with a Test connection button), <code>--warn</code> tokens and field styles.</li>
+<li>Tests (written first, red then green): 39 Rust tests including a shared table of 54 cases (<code>src/profile/validation_cases.json</code>) read by both Rust and vitest; vault tests for uniqueness, self-edit, secret on create and edit, normalization and no secret in errors; 89 vitest tests including form behavior.</li>
+<li>Docs: README structure, CHANGELOG, <code>docs/claude/architect.md</code>.</li>
+</ul>
+<h2>Tradeoffs</h2>
+<ul>
+<li>Two implementations (Rust, TS) instead of one: needed for instant feedback; the shared case table keeps them aligned. The table checks fields and normalized values, not message text.</li>
+<li>Access key and name are trimmed before validation (as before) so a pasted trailing newline is forgiven; whitespace inside the access key is rejected. The secret is never trimmed.</li>
+<li>Endpoint is normalized by WHATWG parsing, so the host is lowercased and a default port (80, 443) is dropped.</li>
+<li><code>profile_save</code> alone gets the structured error; other commands keep string errors, so nothing else changes.</li>
+<li>Errors show only for touched fields, so an empty new form is not red, but Save stays disabled.</li>
+<li>Not covered: <code>profile_duplicate</code> still names the copy "&lt;name&gt; (copy)", which can repeat or exceed 64 characters; existing stored profiles are not re-validated until edited.</li>
+</ul>
+</body></html>

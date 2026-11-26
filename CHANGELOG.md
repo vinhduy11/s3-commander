@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+- Profile validation on add and edit. Rust (`profile_rules.rs`) is authoritative and returns per-field errors; the form mirrors the rules (`src/profile/validate_profile.ts`) for inline errors and a disabled Save while invalid. Rules: name required, max 64, unique case-insensitively; endpoint is an http(s) URL with a host, no user info, query, fragment or path, port 1..65535, normalized (trimmed, no trailing slash); access key without whitespace or control characters; secret required on create (blank on edit keeps the stored one), no control characters; region optional (default `us-east-1`), `[a-z0-9-]` up to 32.
+- A non-blocking warning for `http://` endpoints (keys travel unencrypted) and a "Test connection" button after a successful save. Saving never checks connectivity.
+- Shared test table `src/profile/validation_cases.json` used by both the Rust and the vitest tests.
+
+### Changed
+- `profile_save` now fails with `{ message, fields: [{ field, message }] }` instead of a plain string; `VaultError::Validation` replaces the old "x is required" check.
+
 ### Fixed
 - Panel stuck on "Loading...": a Local listing no longer depends on the profile, so `setProfile` after `profile_list` (fresh launch) no longer drops the first Local response; a bucket source without a profile no longer sets `loading` before returning; a dropped stale response clears `loading` when no newer request owns the panel.
 

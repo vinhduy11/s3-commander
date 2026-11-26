@@ -13,6 +13,8 @@ use chacha20poly1305::{aead::{Aead, KeyInit, OsRng}, XChaCha20Poly1305, XNonce};
 use rand::RngCore;
 use zeroize::Zeroizing;
 
+use crate::profile_rules::{validate_profile_input, FieldError};
+
 #[derive(Debug, thiserror::Error)]
 pub enum VaultError {
     #[error("vault is locked")]
@@ -25,10 +27,16 @@ pub enum VaultError {
     Decrypt,
     #[error("invalid profile: {0}")]
     InvalidProfile(String),
+    #[error("invalid profile: {}", join_errors(.0))]
+    Validation(Vec<FieldError>),
     #[error("io error: {0}")]
     Io(String),
     #[error("crypto error: {0}")]
     Crypto(String),
+}
+
+fn join_errors(errors: &[FieldError]) -> String {
+    errors.iter().map(|e| e.message.as_str()).collect::<Vec<_>>().join(" ")
 }
 
 pub const DEFAULT_REGION: &str = "us-east-1";
@@ -182,23 +190,28 @@ impl Vault {
     }
 
     pub fn save_profile(&mut self, input: ProfileInput) -> Result<ProfileSummary, VaultError> {
-        let existing = self.state()?.profiles.iter().position(|profile| profile.id == input.id);
+        let state = self.state()?;
+        let existing = state.profiles.iter().position(|profile| profile.id == input.id);
+        let others: Vec<&str> = state
+            .profiles
+            .iter()
+            .enumerate()
+            .filter(|(idx, _)| Some(*idx) != existing)
+            .map(|(_, profile)| profile.name.as_str())
+            .collect();
+        let clean = validate_profile_input(&input, &others, existing.is_none()).map_err(VaultError::Validation)?;
         let secret_key = match existing {
-            Some(idx) if input.secret_key.is_empty() => self.state()?.profiles[idx].secret_key.clone(),
-            _ => input.secret_key,
+            Some(idx) if clean.secret_key.is_empty() => state.profiles[idx].secret_key.clone(),
+            _ => clean.secret_key,
         };
         let profile = Profile {
-            id: if existing.is_some() { input.id } else { new_profile_id() },
-            name: input.name.trim().to_string(),
-            endpoint: input.endpoint.trim().to_string(),
-            access_key: input.access_key.trim().to_string(),
+            id: if existing.is_some() { clean.id } else { new_profile_id() },
+            name: clean.name,
+            endpoint: clean.endpoint,
+            access_key: clean.access_key,
             secret_key,
-            region: match input.region.trim() {
-                "" => DEFAULT_REGION.to_string(),
-                region => region.to_string(),
-            },
+            region: clean.region,
         };
-        profile.validate()?;
         let summary = profile.summary();
         let state = self.state_mut()?;
         let previous = state.profiles.clone();
@@ -276,19 +289,6 @@ impl Profile {
             endpoint: self.endpoint.clone(),
             access_key: self.access_key.clone(),
             region: self.region.clone(),
-        }
-    }
-
-    fn validate(&self) -> Result<(), VaultError> {
-        let required = [
-            ("name", &self.name),
-            ("endpoint", &self.endpoint),
-            ("access key", &self.access_key),
-            ("secret key", &self.secret_key),
-        ];
-        match required.iter().find(|(_, value)| value.is_empty()) {
-            Some((field, _)) => Err(VaultError::InvalidProfile(format!("{field} is required"))),
-            None => Ok(()),
         }
     }
 }
@@ -451,16 +451,90 @@ mod tests {
         assert!(matches!(vault.delete_profile("x"), Err(VaultError::Locked)));
     }
 
-    #[test]
-    fn invalid_profile_is_rejected() {
-        let dir = tempfile::tempdir().unwrap();
-        let mut vault = new_vault(&dir);
+    fn fields_of(err: VaultError) -> Vec<&'static str> {
+        match err {
+            VaultError::Validation(errors) => errors.iter().map(|e| e.field).collect(),
+            other => panic!("expected a validation error, got {other}"),
+        }
+    }
+
+    fn unlocked_vault(dir: &tempfile::TempDir) -> Vault {
+        let mut vault = new_vault(dir);
         vault.create("m").unwrap();
-        let mut bad = sample_input("");
-        assert!(matches!(vault.save_profile(bad.clone()), Err(VaultError::InvalidProfile(_))));
-        bad = sample_input("n");
+        vault
+    }
+
+    #[test]
+    fn invalid_profile_is_rejected_with_per_field_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut vault = unlocked_vault(&dir);
+        assert_eq!(fields_of(vault.save_profile(sample_input("")).unwrap_err()), vec!["name"]);
+        let mut bad = sample_input("n");
         bad.secret_key = String::new(); // new profile needs a secret
-        assert!(matches!(vault.save_profile(bad), Err(VaultError::InvalidProfile(_))));
+        assert_eq!(fields_of(vault.save_profile(bad).unwrap_err()), vec!["secret_key"]);
+        assert!(vault.list_profiles().unwrap().is_empty(), "nothing is stored on a rejected save");
+    }
+
+    #[test]
+    fn save_stores_the_normalized_values() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut vault = unlocked_vault(&dir);
+        let mut input = sample_input("  Dev  ");
+        input.endpoint = " HTTP://Localhost:9000/ ".into();
+        let saved = vault.save_profile(input).unwrap();
+        assert_eq!((saved.name.as_str(), saved.endpoint.as_str()), ("Dev", "http://localhost:9000"));
+        assert_eq!(vault.get_profile(&saved.id).unwrap().secret_key, "test-secret-value");
+    }
+
+    #[test]
+    fn name_must_be_unique_case_insensitively() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut vault = unlocked_vault(&dir);
+        vault.save_profile(sample_input("Prod")).unwrap();
+        assert_eq!(fields_of(vault.save_profile(sample_input("pROD")).unwrap_err()), vec!["name"]);
+        assert_eq!(vault.list_profiles().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn editing_may_keep_its_own_name_but_not_take_another() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut vault = unlocked_vault(&dir);
+        let prod = vault.save_profile(sample_input("Prod")).unwrap();
+        vault.save_profile(sample_input("Dev")).unwrap();
+        let mut keep = sample_input("prod"); // same name, other case, same profile
+        keep.id = prod.id.clone();
+        keep.secret_key = String::new();
+        assert_eq!(vault.save_profile(keep).unwrap().name, "prod");
+        let mut steal = sample_input("DEV");
+        steal.id = prod.id;
+        steal.secret_key = String::new();
+        assert_eq!(fields_of(vault.save_profile(steal).unwrap_err()), vec!["name"]);
+    }
+
+    #[test]
+    fn empty_secret_on_create_is_rejected_and_on_edit_keeps_the_stored_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut vault = unlocked_vault(&dir);
+        let mut create = sample_input("one");
+        create.secret_key = String::new();
+        assert_eq!(fields_of(vault.save_profile(create).unwrap_err()), vec!["secret_key"]);
+        let saved = vault.save_profile(sample_input("one")).unwrap();
+        let mut edit = sample_input("one");
+        edit.id = saved.id.clone();
+        edit.secret_key = String::new();
+        vault.save_profile(edit).unwrap();
+        assert_eq!(vault.get_profile(&saved.id).unwrap().secret_key, "test-secret-value");
+    }
+
+    #[test]
+    fn validation_error_text_never_contains_the_secret() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut vault = unlocked_vault(&dir);
+        let mut bad = sample_input("");
+        bad.secret_key = "s3cr3t-VALUE\nx".into();
+        bad.endpoint = "http://user:s3cr3t-VALUE@host".into();
+        let err = vault.save_profile(bad).unwrap_err();
+        assert!(!format!("{err} {err:?}").contains("s3cr3t"));
     }
 
     #[test]

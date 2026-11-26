@@ -1,11 +1,12 @@
 pub mod app_error;
 pub mod local;
+pub mod profile_rules;
 pub mod s3;
 pub mod vault;
 
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use app_error::AppError;
+use app_error::{AppError, ProfileSaveError};
 use aws_sdk_s3::Client;
 use tauri::{Manager, State};
 use vault::{ProfileInput, ProfileSummary, Vault};
@@ -97,9 +98,12 @@ fn profile_list(state: VaultState) -> Result<Vec<ProfileSummary>, String> {
 }
 
 #[tauri::command]
-fn profile_save(state: VaultState, clients: ClientState, profile: ProfileInput) -> Result<ProfileSummary, String> {
+fn profile_save(state: VaultState, clients: ClientState, profile: ProfileInput) -> Result<ProfileSummary, ProfileSaveError> {
     clients.clear();
-    with_vault(&state, |vault| vault.save_profile(profile))
+    let mut vault = state
+        .lock()
+        .map_err(|_| ProfileSaveError { message: "vault state poisoned".into(), fields: Vec::new() })?;
+    Ok(vault.save_profile(profile)?)
 }
 
 #[tauri::command]

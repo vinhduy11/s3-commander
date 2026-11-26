@@ -38,6 +38,8 @@
   --ok: #1a7f46;
   --danger: #c4261d;
   --danger-soft: #fdecea;
+  --warn: #9a5b00;
+  --warn-soft: #fff4dc;
   --icon-dir: #3b8bf0;
   --icon-file: #8a90a0;
   --icon-image: #8b5cf6;
@@ -66,6 +68,8 @@
     --ok: #5fd08a;
     --danger: #ff8a80;
     --danger-soft: #3a1f1f;
+    --warn: #f5b84a;
+    --warn-soft: #3a2f14;
     --icon-dir: #5aa2ff;
     --icon-file: #8d93a3;
     --icon-image: #b79cff;
