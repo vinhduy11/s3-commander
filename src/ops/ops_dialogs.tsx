@@ -97,20 +97,24 @@ function NameForm({ title, initial, error, onSubmit }: { title: string; initial:
 const sizeAndDate = (size: number | null, modified: number | null) =>
   [size === null ? "unknown size" : formatSize(size), modified === null ? "" : formatDate(modified)].filter(Boolean).join("  ");
 
-function ConflictButtons({ onChoose, onChooseAll }: { onChoose: (policy: ConflictPolicy) => void; onChooseAll: (policy: ConflictPolicy) => void }) {
+/** The "all" buttons only make sense while more conflicts are still to come; on the last (or only) one they would repeat the plain choices. */
+function ConflictButtons({ hasMore, onChoose, onChooseAll }: { hasMore: boolean; onChoose: (policy: ConflictPolicy) => void; onChooseAll: (policy: ConflictPolicy) => void }) {
   return (
     <>
       <div className="modal-actions wrap">
         <button type="button" onClick={() => onChoose("overwrite")}>Overwrite</button>
         <button type="button" data-autofocus onClick={() => onChoose("skip")}>Skip</button>
         <button type="button" onClick={() => onChoose("keep_both")}>Keep both</button>
+        {!hasMore && <button type="button" onClick={cancelDialog}>Cancel</button>}
       </div>
-      <div className="modal-actions wrap">
-        <button type="button" onClick={() => onChooseAll("overwrite")}>Overwrite all</button>
-        <button type="button" onClick={() => onChooseAll("skip")}>Skip all</button>
-        <button type="button" onClick={() => onChooseAll("keep_both")}>Keep both all</button>
-        <button type="button" onClick={cancelDialog}>Cancel</button>
-      </div>
+      {hasMore && (
+        <div className="modal-actions wrap">
+          <button type="button" onClick={() => onChooseAll("overwrite")}>Overwrite all</button>
+          <button type="button" onClick={() => onChooseAll("skip")}>Skip all</button>
+          <button type="button" onClick={() => onChooseAll("keep_both")}>Keep both all</button>
+          <button type="button" onClick={cancelDialog}>Cancel</button>
+        </div>
+      )}
     </>
   );
 }
@@ -197,7 +201,7 @@ export function OpsDialogs() {
             <dt>Existing</dt><dd>{sizeAndDate(conflict.existing_size, conflict.existing_modified)}</dd>
             <dt>Incoming</dt><dd>{sizeAndDate(conflict.incoming_size, conflict.incoming_modified)}</dd>
           </dl>
-          <ConflictButtons onChoose={(policy) => void resolveConflict(policy)} onChooseAll={(policy) => void resolveAllConflicts(policy)} />
+          <ConflictButtons hasMore={dialog.index < dialog.summary.conflicts.length - 1} onChoose={(policy) => void resolveConflict(policy)} onChooseAll={(policy) => void resolveAllConflicts(policy)} />
         </Modal>
       );
     }

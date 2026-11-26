@@ -12,6 +12,7 @@
 - `profile_save` now fails with `{ message, fields: [{ field, message }] }` instead of a plain string; `VaultError::Validation` replaces the old "x is required" check.
 
 ### Fixed
+- Conflict dialog no longer shows "Overwrite all", "Skip all" and "Keep both all" on the last (or only) conflict, where they repeat the plain choices.
 - Panel stuck on "Loading...": a Local listing no longer depends on the profile, so `setProfile` after `profile_list` (fresh launch) no longer drops the first Local response; a bucket source without a profile no longer sets `loading` before returning; a dropped stale response clears `loading` when no newer request owns the panel.
 
 ### Changed

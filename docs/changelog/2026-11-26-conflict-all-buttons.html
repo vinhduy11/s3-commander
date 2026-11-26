@@ -1,0 +1,14 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Conflict dialog: hide "all" on the last conflict</title></head><body>
+<h1>Conflict dialog: hide "all" buttons on the last conflict</h1>
+<h2>Specs</h2>
+<p>The owner saw "Already exists (1 of 1)" with Overwrite all, Skip all and Keep both all, which are pointless when only one conflict is left.</p>
+<h2>Actions</h2>
+<ul>
+<li>Measured: new <code>src/ops/ops_dialogs.test.tsx</code> (3 tests). Before the fix 2 failed (single conflict, last of several) and 1 passed (conflicts still to come keep the "all" buttons).</li>
+<li><code>ConflictButtons</code> in <code>src/ops/ops_dialogs.tsx</code> takes <code>hasMore</code> (<code>index &lt; conflicts.length - 1</code>); without more conflicts the second row is dropped and Cancel joins the first row.</li>
+<li>Measured: <code>npm test</code> 148 passed, <code>npm run build</code> ok.</li>
+</ul>
+<h2>Tradeoffs</h2>
+<p>The "all" buttons stay on every conflict except the last, so the flow is unchanged for several conflicts. Alternative considered: hide them only when the total is 1; rejected because on the last of several conflicts they repeat the plain choices too.</p>
+<p>Not exercised: the real Tauri window.</p>
+</body></html>
