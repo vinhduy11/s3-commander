@@ -12,6 +12,10 @@ pub const DEFAULT_AUTO_LOCK_MINUTES: u32 = 15;
 pub struct AppSettings {
     #[serde(default = "default_auto_lock")]
     pub auto_lock_minutes: u32,
+    /// "Remember on this device": the derived vault key is kept in the OS keychain for the next
+    /// launch. Off by default; files written before it existed load as off.
+    #[serde(default)]
+    pub remember_on_device: bool,
 }
 
 fn default_auto_lock() -> u32 {
@@ -20,7 +24,7 @@ fn default_auto_lock() -> u32 {
 
 impl Default for AppSettings {
     fn default() -> Self {
-        Self { auto_lock_minutes: DEFAULT_AUTO_LOCK_MINUTES }
+        Self { auto_lock_minutes: DEFAULT_AUTO_LOCK_MINUTES, remember_on_device: false }
     }
 }
 
@@ -56,6 +60,14 @@ pub fn save(path: &Path, settings: &AppSettings) -> Result<(), String> {
     std::fs::rename(&tmp, path).map_err(|err| err.to_string())
 }
 
+/// What `settings_set` does: the UI may change the auto-lock time but never the remember flag,
+/// which only the remember commands change (they also touch the keychain).
+pub fn save_from_ui(path: &Path, mut incoming: AppSettings) -> Result<AppSettings, String> {
+    incoming.remember_on_device = load(path).remember_on_device;
+    save(path, &incoming)?;
+    Ok(incoming)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -74,7 +86,7 @@ mod tests {
     fn save_then_load_round_trips_every_choice() {
         let dir = tempfile::tempdir().unwrap();
         for minutes in AUTO_LOCK_CHOICES {
-            save(&path(&dir), &AppSettings { auto_lock_minutes: minutes }).unwrap();
+            save(&path(&dir), &AppSettings { auto_lock_minutes: minutes, remember_on_device: false }).unwrap();
             assert_eq!(load(&path(&dir)).auto_lock_minutes, minutes);
         }
     }
@@ -82,7 +94,7 @@ mod tests {
     #[test]
     fn invalid_value_is_refused_and_nothing_is_written() {
         let dir = tempfile::tempdir().unwrap();
-        let err = save(&path(&dir), &AppSettings { auto_lock_minutes: 7 }).unwrap_err();
+        let err = save(&path(&dir), &AppSettings { auto_lock_minutes: 7, remember_on_device: false }).unwrap_err();
         assert!(err.contains("Auto-lock"));
         assert!(!path(&dir).exists());
     }
@@ -109,5 +121,35 @@ mod tests {
         save(&path(&dir), &AppSettings::default()).unwrap();
         let names: Vec<_> = std::fs::read_dir(dir.path()).unwrap().map(|e| e.unwrap().file_name()).collect();
         assert_eq!(names, vec![std::ffi::OsString::from("settings.json")]);
+    }
+
+    #[test]
+    fn remember_on_device_defaults_to_off() {
+        assert!(!AppSettings::default().remember_on_device);
+    }
+
+    #[test]
+    fn a_settings_file_written_before_the_flag_loads_with_it_off() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(path(&dir), br#"{"auto_lock_minutes": 5}"#).unwrap();
+        let loaded = load(&path(&dir));
+        assert_eq!(loaded.auto_lock_minutes, 5);
+        assert!(!loaded.remember_on_device);
+    }
+
+    #[test]
+    fn the_flag_round_trips() {
+        let dir = tempfile::tempdir().unwrap();
+        save(&path(&dir), &AppSettings { auto_lock_minutes: 5, remember_on_device: true }).unwrap();
+        assert!(load(&path(&dir)).remember_on_device);
+    }
+
+    #[test]
+    fn saving_from_the_ui_never_changes_the_flag() {
+        let dir = tempfile::tempdir().unwrap();
+        save(&path(&dir), &AppSettings { auto_lock_minutes: 5, remember_on_device: true }).unwrap();
+        let saved = save_from_ui(&path(&dir), AppSettings { auto_lock_minutes: 30, remember_on_device: false }).unwrap();
+        assert_eq!(saved, AppSettings { auto_lock_minutes: 30, remember_on_device: true });
+        assert_eq!(load(&path(&dir)), saved);
     }
 }

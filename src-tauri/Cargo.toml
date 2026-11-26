@@ -35,6 +35,9 @@ aws-credential-types = "1.2.14"
 aws-smithy-types = "1.5.0"
 aws-smithy-runtime-api = "1.12.3"
 trash = "5.4.0"
+# OS keychain for the opt-in "remember on this device". Default features: Apple Keychain, Secret Service
+# over zbus (pure Rust, no system libdbus), Windows Credential Manager.
+keyring = "4.2"
 tokio = { version = "1.54.1", features = ["fs", "io-util", "rt", "sync", "time", "macros"] }
 
 

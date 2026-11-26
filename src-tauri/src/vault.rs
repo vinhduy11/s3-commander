@@ -191,8 +191,12 @@ fn decode(field: &str) -> Result<Vec<u8>, VaultError> {
     B64.decode(field).map_err(|_| VaultError::Decrypt)
 }
 
-/// Decrypt a vault file. The one path used by unlock and by the upgrade read-back check.
-fn open_file(master_key: &str, bytes: &[u8]) -> Result<Unlocked, VaultError> {
+/// Decrypt a vault file with the key `key_for` derives or supplies from the header's salt and
+/// parameters. The one path used by unlock, key unlock and the upgrade read-back check.
+fn open_file_with(
+    bytes: &[u8],
+    key_for: impl FnOnce(&[u8; SALT_LEN], KdfParams) -> Result<Zeroizing<[u8; KEY_LEN]>, VaultError>,
+) -> Result<Unlocked, VaultError> {
     let file: VaultFile = serde_json::from_slice(bytes).map_err(|_| VaultError::Decrypt)?;
     if file.version != 1 && file.version != FILE_VERSION {
         return Err(VaultError::Decrypt);
@@ -205,7 +209,7 @@ fn open_file(master_key: &str, bytes: &[u8]) -> Result<Unlocked, VaultError> {
     if nonce.len() != NONCE_LEN {
         return Err(VaultError::Decrypt);
     }
-    let key = derive_key(master_key, &salt, file.kdf)?;
+    let key = key_for(&salt, file.kdf)?;
     let plaintext = Zeroizing::new(
         XChaCha20Poly1305::new(key.as_ref().into())
             .decrypt(XNonce::from_slice(&nonce), decode(&file.ciphertext)?.as_slice())
@@ -213,6 +217,10 @@ fn open_file(master_key: &str, bytes: &[u8]) -> Result<Unlocked, VaultError> {
     );
     let profiles = serde_json::from_slice(&plaintext).map_err(|_| VaultError::Decrypt)?;
     Ok(Unlocked { key, salt, kdf: file.kdf, profiles })
+}
+
+fn open_file(master_key: &str, bytes: &[u8]) -> Result<Unlocked, VaultError> {
+    open_file_with(bytes, |salt, kdf| derive_key(master_key, salt, kdf))
 }
 
 /// Encrypt the profile list with a fresh nonce into the file bytes.
@@ -336,6 +344,22 @@ impl Vault {
         }
         std::fs::rename(tmp, &self.path).map_err(io_err)?;
         Ok(upgraded)
+    }
+
+    /// Open the vault with an already derived key (the one kept in the OS keychain). No key
+    /// derivation and no upgrade: the upgrade needs the master key text, which is not available here.
+    pub fn unlock_with_key(&mut self, key: &[u8; KEY_LEN]) -> Result<(), VaultError> {
+        if !self.exists() {
+            return Err(VaultError::NotFound);
+        }
+        let bytes = std::fs::read(&self.path).map_err(io_err)?;
+        self.unlocked = Some(open_file_with(&bytes, |_, _| Ok(Zeroizing::new(*key)))?);
+        Ok(())
+    }
+
+    /// A copy of the derived key in a zeroizing buffer, for the keychain.
+    pub fn derived_key(&self) -> Result<Zeroizing<[u8; KEY_LEN]>, VaultError> {
+        Ok(Zeroizing::new(*self.state()?.key))
     }
 
     pub fn lock(&mut self) {
@@ -684,6 +708,62 @@ mod tests {
             }
             println!("kdf_timing {name} m={} KiB t={} p={}: runs_ms={times:?}", params.m_cost, params.t_cost, params.p_cost);
         }
+    }
+
+    #[test]
+    fn the_derived_key_reopens_the_vault_without_any_key_derivation() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut vault = new_vault(&dir);
+        vault.create("master").unwrap();
+        vault.save_profile(sample_input("Work")).unwrap();
+        let key = vault.derived_key().unwrap();
+        vault.lock();
+        let before = derive_count_for_tests();
+        vault.unlock_with_key(&key).unwrap();
+        assert_eq!(derive_count_for_tests(), before);
+        assert_eq!(vault.list_profiles().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_locked_vault_has_no_derived_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut vault = new_vault(&dir);
+        vault.create("master").unwrap();
+        vault.lock();
+        assert!(matches!(vault.derived_key(), Err(VaultError::Locked)));
+    }
+
+    #[test]
+    fn a_wrong_key_is_refused_and_the_vault_stays_locked_with_a_message_without_the_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut vault = new_vault(&dir);
+        vault.create("master").unwrap();
+        vault.lock();
+        let wrong = [3u8; KEY_LEN];
+        let err = vault.unlock_with_key(&wrong).unwrap_err();
+        assert!(matches!(err, VaultError::Decrypt));
+        assert!(!vault.is_unlocked());
+        assert!(!err.to_string().contains(&B64.encode(wrong)));
+    }
+
+    #[test]
+    fn unlocking_with_a_key_never_upgrades_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut vault = new_vault(&dir);
+        vault.create("master").unwrap();
+        let key = vault.derived_key().unwrap();
+        vault.lock();
+        let before = bytes_of(&dir);
+        let mut stronger = Vault::with_target(dir.path().join("vault.json"), TEST_TARGET);
+        stronger.unlock_with_key(&key).unwrap();
+        assert_eq!(bytes_of(&dir), before);
+    }
+
+    #[test]
+    fn unlocking_with_a_key_needs_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut vault = new_vault(&dir);
+        assert!(matches!(vault.unlock_with_key(&[1u8; KEY_LEN]), Err(VaultError::NotFound)));
     }
 
     #[test]

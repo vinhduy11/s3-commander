@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Remember on this device (step 6b)</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:860px;margin:2rem auto;padding:0 1rem}code{background:#eee3;padding:0 .2em}</style></head><body>
+<h1>Remember on this device (step 6b)</h1>
+<h2>Specs</h2>
+<ul>
+<li>Opt-in option (default off) in the Settings popover that keeps the vault's 32-byte derived key (never the master key text) in the OS keychain, service <code>dev.local.s3commander</code>, fixed account, base64.</li>
+<li>Used only at app launch (<code>vault_unlock_remembered</code>); Lock and idle auto-lock need the master key again; remembered unlocks do not count in the unlock throttle.</li>
+<li>Stale or failing key: deleted silently, master-key screen shown. Off, Forget, failed decrypt delete the entry; refresh after the Argon2 upgrade changed the key.</li>
+<li>Keychain behind a <code>KeyStore</code> trait with <code>SystemKeyStore</code> (keyring crate) and an in-memory fake; unavailable keychain: option disabled, "Not available on this system", no error. Documentation: safety, architect, new deployment.md, commands, README, CHANGELOG.</li>
+</ul>
+<h2>Actions</h2>
+<ul>
+<li>Rust: <code>key_store.rs</code> (trait, <code>SystemKeyStore</code>, test-only <code>MemoryKeyStore</code>, one <code>#[ignore]</code> real-keychain test), <code>remember.rs</code> (enable, forget, status, <code>unlock_remembered</code> with <code>LaunchGate</code>, <code>unlock_with_master</code> with refresh), <code>settings.rs</code> flag <code>remember_on_device</code> and <code>save_from_ui</code>, <code>vault.rs</code> <code>derived_key</code> / <code>unlock_with_key</code> (decrypt path shared via <code>open_file_with</code>), <code>lib.rs</code> commands and managed state; dependency <code>keyring 4.2</code> (default features).</li>
+<li>Frontend: <code>security/launch_unlock.ts</code>, settings store and popover (off / on with Forget / not available), "Unlocking..." state in <code>MasterKeyScreen</code>, <code>App</code> tries the remembered key once at mount, CSS.</li>
+<li>Tests written first (red saved: compile errors for Rust, 9 failed tests plus a missing module for Vitest), then green: Rust 304 passed, 2 ignored; Vitest 541 passed; <code>cargo check</code> and <code>npm run build</code> clean, zero warnings.</li>
+</ul>
+<h2>Tradeoffs</h2>
+<ul>
+<li>Derived key instead of a data-key redesign: no format change, but the stored key is equivalent to the master key for that vault file and changes when the salt changes (handled by the refresh).</li>
+<li>One-shot <code>LaunchGate</code> in Rust rather than a frontend rule, so a compromised or buggy UI cannot re-unlock after a lock.</li>
+<li>A remembered launch cannot run the Argon2 upgrade (no master key); it happens at the next master-key unlock.</li>
+<li>Forget and the unticked box are the same action (delete entry, flag off); the Forget button is a visible shortcut.</li>
+<li><code>keyring</code> v4 default features chosen: zbus Secret Service avoids system libdbus; it also compiles the Windows store, unused.</li>
+<li>An unreadable value in the keychain is treated as absent instead of an error.</li>
+</ul>
+<h2>Measured vs inferred</h2>
+<p><b>Measured:</b> the test, check and build results above on this Mac; popover screenshots (Chromium with a mocked <code>__TAURI_INTERNALS__</code>, three states, light and dark).</p>
+<p><b>Not exercised / inferred:</b> the real macOS Keychain (prompts, access rules), the Linux Secret Service and the Linux build, the Tauri window, an Argon2 vault upgrade with a stored key against the real keychain (the fake store covers the logic), signing and DMG build (documented, unverified).</p>
+</body></html>

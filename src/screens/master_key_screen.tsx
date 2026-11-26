@@ -7,7 +7,7 @@ export function formatWait(seconds: number): string {
   return seconds < 60 ? `${seconds} s` : `${Math.floor(seconds / 60)} min ${seconds % 60} s`;
 }
 
-export function MasterKeyScreen({ exists, onDone }: { exists: boolean; onDone: () => void }) {
+export function MasterKeyScreen({ exists, onDone, unlocking = false }: { exists: boolean; onDone: () => void; unlocking?: boolean }) {
   const [masterKey, setMasterKey] = useState("");
   const [confirmKey, setConfirmKey] = useState("");
   const [error, setError] = useState("");
@@ -27,7 +27,7 @@ export function MasterKeyScreen({ exists, onDone }: { exists: boolean; onDone: (
     }
   }
 
-  useEffect(() => void refreshWait(), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => void (!unlocking && refreshWait()), [unlocking]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (remaining <= 0) return;
@@ -51,6 +51,19 @@ export function MasterKeyScreen({ exists, onDone }: { exists: boolean; onDone: (
       setError(String(err));
       await refreshWait();
     }
+  }
+
+  if (unlocking) {
+    return (
+      <main className="center">
+        <div className="card">
+          <div className="brand">
+            <span className="brand-mark"><KeyIcon /></span>
+            <h1>Unlocking...</h1>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   return (

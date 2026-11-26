@@ -2,7 +2,7 @@
 
 Tauri desktop app to manage files and directories on a MinIO server (S3-compatible API) with a Total Commander-style dual-pane UI. Multiple profiles, secrets encrypted in an app vault, unlocked with a master key. See `CLAUDE.md` and `docs/claude/` for the design.
 
-Status: multi-profile vault, browsing (dual-pane Local / bucket panels, profile switcher, profile test and duplicate) and basic file operations: F5 Copy, F6 Move, F7 New folder, F8 Delete, F2 Rename between Local and server panels, with a per-item conflict dialog (step 3a). Drag and drop and the context menu (3b, 3c) are in. Uploads and downloads of any size (up to the 5 TiB object limit) go through the multipart / ranged transfer engine (step 4a, Rust only): parts in parallel with retry, resume of a partly uploaded multipart, ranged downloads through a `.part` file. Copy, Move and drops run as background jobs in a transfer queue above the function keys (step 4b): progress, speed and ETA, Cancel, and Retry that resumes a kept multipart upload (an app crash or quit leaves such an upload on the server, see `docs/claude/architect.md`). View/edit (step 5) is in. Vault hardening (step 6a): auto-lock after idle (Settings popover), a persisted delay after failed unlocks, and stronger Argon2 parameters for new vaults with an in-place upgrade of old ones. Not yet: "remember on this device" and the Linux build (step 6b) (`docs/implement/s3-commander-roadmap.md`).
+Status: multi-profile vault, browsing (dual-pane Local / bucket panels, profile switcher, profile test and duplicate) and basic file operations: F5 Copy, F6 Move, F7 New folder, F8 Delete, F2 Rename between Local and server panels, with a per-item conflict dialog (step 3a). Drag and drop and the context menu (3b, 3c) are in. Uploads and downloads of any size (up to the 5 TiB object limit) go through the multipart / ranged transfer engine (step 4a, Rust only): parts in parallel with retry, resume of a partly uploaded multipart, ranged downloads through a `.part` file. Copy, Move and drops run as background jobs in a transfer queue above the function keys (step 4b): progress, speed and ETA, Cancel, and Retry that resumes a kept multipart upload (an app crash or quit leaves such an upload on the server, see `docs/claude/architect.md`). View/edit (step 5) is in. Vault hardening (step 6a): auto-lock after idle (Settings popover), a persisted delay after failed unlocks, and stronger Argon2 parameters for new vaults with an in-place upgrade of old ones. Step 6b: an opt-in "Remember on this device" (Settings popover) keeps the vault's derived key in the OS keychain and opens the vault with it only at app launch; macOS and Linux build and release notes are in `docs/claude/deployment.md` (the Linux build and the real keychain are untested here).
 
 ## Development
 
@@ -20,7 +20,7 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 ```
 .
 ├── CLAUDE.md             # index for Claude Code, points into docs/claude/
-├── docs/claude/          # topic reference files (architect, rule, safety, commands)
+├── docs/claude/          # topic reference files (architect, rule, safety, commands, deployment)
 ├── docs/changelog/       # dated implementation reports
 ├── docs/implement/       # implementation plans (roadmap for the S3 steps)
 ├── docs/artifact/        # offline copy of published artifacts (UI demo, app icon options)
@@ -33,7 +33,7 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 │   ├── tokens.css        # design tokens (colors, type, spacing, radius) with light and dark themes
 │   ├── styles.css        # all component styles, built on tokens.css (imported by App.tsx)
 │   ├── icons.tsx         # inline SVG icons: folder, parent, file types, lock, key, server, disk
-│   ├── security/                  # auto-lock (step 6a): idle_timer (pure), use_auto_lock, settings_store, settings_popover
+│   ├── security/                  # auto-lock (6a): idle_timer (pure), use_auto_lock, settings_store, settings_popover (incl. Remember on this device); launch_unlock (6b: remembered-key unlock at launch)
 │   ├── screens/
 │   │   ├── master_key_screen.tsx  # create / unlock the vault; shows the unlock wait after failed attempts and disables Unlock
 │   │   ├── profiles_screen.tsx    # add, edit, delete, test, duplicate profiles; shows Rust's per-field save errors
@@ -104,6 +104,8 @@ npm test               # vitest: panel store, navigation helpers, operation targ
     ├── icons/            # app icons generated from icon-source/app-icon.svg with `npx tauri icon src-tauri/icon-source/app-icon.svg` (desktop files only; mobile folders removed)
     └── src/
         ├── main.rs       # binary entry
+        ├── key_store.rs  # KeyStore trait (get, set, delete, is_available), SystemKeyStore (keyring crate: Apple Keychain, Secret Service), test-only MemoryKeyStore; no Tauri dependency
+        ├── remember.rs   # remember on this device: enable, forget, launch-only unlock with the stored key, refresh after a master-key unlock, LaunchGate; no Tauri dependency
         ├── settings.rs   # app settings file (settings.json: auto-lock minutes): defaults, validation, atomic save; no Tauri dependency
         ├── unlock_throttle.rs # failed-unlock counter with exponential delay (1 s .. 5 min), persisted, injectable clock; unlock_guarded; no Tauri dependency
         ├── lib.rs        # Tauri builder, vault + client-cache state, thin commands (incl. transfer_preview, transfer_start / transfer_cancel / transfer_retry / transfer_dismiss / transfer_list, items_delete, folder_create, item_rename, presign_preview, presign_urls, write_text_file)

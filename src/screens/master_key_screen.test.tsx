@@ -80,3 +80,19 @@ describe("unlock throttle on the master key screen", () => {
     expect(vi.mocked(invoke)).not.toHaveBeenCalledWith("vault_unlock_wait");
   });
 });
+
+describe("launch unlock with the remembered key", () => {
+  it("shows Unlocking... and no key field while the remembered key is tried", async () => {
+    await act(async () => root.render(<MasterKeyScreen exists unlocking onDone={vi.fn()} />));
+    expect(host.textContent).toContain("Unlocking...");
+    expect(host.querySelector("input")).toBeNull();
+    expect(invoke).not.toHaveBeenCalledWith("vault_unlock_wait");
+  });
+
+  it("shows the normal form again when the attempt is over", async () => {
+    await act(async () => root.render(<MasterKeyScreen exists unlocking onDone={vi.fn()} />));
+    await act(async () => root.render(<MasterKeyScreen exists onDone={vi.fn()} />));
+    expect(host.textContent).not.toContain("Unlocking...");
+    expect(host.querySelector("input[type=password]")).not.toBeNull();
+  });
+});

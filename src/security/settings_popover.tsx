@@ -10,9 +10,11 @@ export function SettingsPopover() {
   const button = useRef<HTMLButtonElement>(null);
   const minutes = useSettingsStore((state) => state.autoLockMinutes);
   const error = useSettingsStore((state) => state.error);
+  const remember = useSettingsStore((state) => state.remember);
 
   useEffect(() => {
     if (!open) return;
+    void useSettingsStore.getState().loadRemember();
     wrap.current?.querySelector<HTMLElement>("[role=radio][aria-checked=true]")?.focus();
     const away = (event: MouseEvent) => !wrap.current?.contains(event.target as Node) && setOpen(false);
     document.addEventListener("mousedown", away);
@@ -58,6 +60,25 @@ export function SettingsPopover() {
           </div>
           <p className="muted popover-note">
             Locking cancels running transfers and returns to the master key screen. Any unsaved edits in an open file are kept and come back after you unlock.
+          </p>
+          <div className="remember">
+            <label className={`remember-row${remember.available ? "" : " disabled"}`}>
+              <input
+                type="checkbox"
+                checked={remember.enabled}
+                disabled={!remember.available}
+                onChange={(event) => void useSettingsStore.getState().setRemember(event.currentTarget.checked)}
+              />
+              <span>Remember on this device</span>
+            </label>
+            {remember.available && remember.enabled && (
+              <button type="button" onClick={() => void useSettingsStore.getState().forgetRemember()}>Forget</button>
+            )}
+          </div>
+          <p className="muted popover-note">
+            {remember.available
+              ? "Keeps a key in the system keychain and opens the vault with it only when the app starts. Lock and auto-lock still ask for the master key."
+              : "Not available on this system."}
           </p>
           {error && <p className="alert-text" role="alert">{error}</p>}
         </div>

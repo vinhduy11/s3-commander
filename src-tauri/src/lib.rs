@@ -1,10 +1,12 @@
 pub mod app_error;
 pub mod aws_config;
+pub mod key_store;
 pub mod local;
 pub mod multipart_upload;
 pub mod part_plan;
 pub mod ranged_download;
 pub mod profile_rules;
+pub mod remember;
 pub mod local_ops;
 pub mod presign;
 pub mod s3;
@@ -31,7 +33,7 @@ use transfer_job::{JobSnapshot, ProgressEvent};
 use transfer_plan::{Location, PlanSummary, Resolutions, TopItem, TransferRequest};
 use transfer_queue::{EventSink, JobSpec, TransferQueue};
 use transfer_run::{DeleteReport, RunReport};
-use unlock_throttle::{unlock_guarded, SystemClock, UnlockThrottle};
+use unlock_throttle::{SystemClock, UnlockThrottle};
 use vault::{ProfileInput, ProfileSummary, Vault};
 use zeroize::Zeroizing;
 
@@ -43,6 +45,12 @@ type ThrottleState<'a> = State<'a, Mutex<UnlockThrottle>>;
 
 /// Where `settings.json` lives (managed state).
 struct SettingsPath(std::path::PathBuf);
+
+/// The OS keychain and the once-per-run launch gate (managed state).
+struct Remember {
+    store: Box<dyn key_store::KeyStore>,
+    gate: remember::LaunchGate,
+}
 
 type VaultState<'a> = State<'a, Mutex<Vault>>;
 type ClientState<'a> = State<'a, ClientCache>;
@@ -130,10 +138,56 @@ fn vault_create(state: VaultState, master: String) -> Result<(), String> {
 
 /// Unlock behind the failed-attempt throttle: while the delay runs it refuses without deriving a key.
 #[tauri::command]
-fn vault_unlock(state: VaultState, throttle: ThrottleState, master: String) -> Result<(), String> {
+async fn vault_unlock(
+    state: VaultState<'_>,
+    throttle: ThrottleState<'_>,
+    remember: State<'_, Remember>,
+    settings_path: State<'_, SettingsPath>,
+    master: String,
+) -> Result<(), String> {
     let master = Zeroizing::new(master);
     let mut throttle = throttle.lock().unwrap_or_else(PoisonError::into_inner);
-    with_vault(&state, |vault| unlock_guarded(vault, &mut throttle, &SystemClock, &master))
+    with_vault(&state, |vault| {
+        remember::unlock_with_master(vault, &mut throttle, &SystemClock, &master, remember.store.as_ref(), &settings_path.0)
+    })
+}
+
+/// Launch only: opens the vault with the key kept in the OS keychain. False (never an error)
+/// whenever the master key screen should follow; it works once per run, so a lock needs the master key.
+#[tauri::command]
+async fn vault_unlock_remembered(
+    state: VaultState<'_>,
+    remember: State<'_, Remember>,
+    settings_path: State<'_, SettingsPath>,
+) -> Result<bool, String> {
+    Ok(remember::unlock_remembered(&mut lock_vault(&state), remember.store.as_ref(), &settings_path.0, &remember.gate))
+}
+
+#[tauri::command]
+async fn remember_status(remember: State<'_, Remember>, settings_path: State<'_, SettingsPath>) -> Result<remember::RememberStatus, String> {
+    Ok(remember::status(remember.store.as_ref(), &settings_path.0))
+}
+
+/// Turn "remember on this device" on (stores the open vault's key) or off (deletes it).
+#[tauri::command]
+async fn remember_set(
+    state: VaultState<'_>,
+    remember: State<'_, Remember>,
+    settings_path: State<'_, SettingsPath>,
+    enabled: bool,
+) -> Result<remember::RememberStatus, String> {
+    if enabled {
+        remember::enable(&lock_vault(&state), remember.store.as_ref(), &settings_path.0)?;
+    } else {
+        remember::forget(remember.store.as_ref(), &settings_path.0)?;
+    }
+    Ok(remember::status(remember.store.as_ref(), &settings_path.0))
+}
+
+#[tauri::command]
+async fn remember_forget(remember: State<'_, Remember>, settings_path: State<'_, SettingsPath>) -> Result<remember::RememberStatus, String> {
+    remember::forget(remember.store.as_ref(), &settings_path.0)?;
+    Ok(remember::status(remember.store.as_ref(), &settings_path.0))
 }
 
 /// Milliseconds the unlock screen still has to wait (0 = may try now).
@@ -149,8 +203,7 @@ fn settings_get(path: State<SettingsPath>) -> settings::AppSettings {
 
 #[tauri::command]
 fn settings_set(path: State<SettingsPath>, settings: settings::AppSettings) -> Result<settings::AppSettings, String> {
-    settings::save(&path.0, &settings)?;
-    Ok(settings)
+    settings::save_from_ui(&path.0, settings)
 }
 
 /// Lock stops every transfer first (cancels, aborts the kept uploads), then drops the client.
@@ -396,6 +449,7 @@ pub fn run() {
             let data_dir = app.path().app_data_dir()?;
             let vault_path = data_dir.join(VAULT_FILE_NAME);
             app.manage(SettingsPath(data_dir.join(SETTINGS_FILE_NAME)));
+            app.manage(Remember { store: Box::new(key_store::SystemKeyStore::new()), gate: remember::LaunchGate::new() });
             app.manage(Mutex::new(UnlockThrottle::load(data_dir.join(THROTTLE_FILE_NAME))));
             app.manage(Mutex::new(Vault::new(vault_path)));
             app.manage(ClientCache::default());
@@ -407,6 +461,10 @@ pub fn run() {
             vault_create,
             vault_unlock,
             vault_lock,
+            vault_unlock_remembered,
+            remember_status,
+            remember_set,
+            remember_forget,
             vault_unlock_wait,
             settings_get,
             settings_set,

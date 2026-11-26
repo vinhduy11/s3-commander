@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { launchStatus, readStatus, type VaultStatus } from "./security/launch_unlock";
 import { useBrowseStore } from "./browse/browse_store";
 import { attachQueueEvents } from "./queue/queue_events";
 import { useQueueStore } from "./queue/queue_store";
@@ -12,19 +13,23 @@ import { MasterKeyScreen } from "./screens/master_key_screen";
 import { ProfilesScreen } from "./screens/profiles_screen";
 import "./styles.css";
 
-type VaultStatus = { exists: boolean; unlocked: boolean };
 type View = "browser" | "profiles";
 
 function App() {
   const [status, setStatus] = useState<VaultStatus | null>(null);
   const [view, setView] = useState<View>("browser");
+  const [trying, setTrying] = useState(false); // the remembered key is being tried at launch
 
   async function refreshStatus() {
-    setStatus(await invoke<VaultStatus>("vault_status"));
+    setStatus(await readStatus());
   }
 
+  // Once per run: open with the remembered key when there is one. A Lock later only calls refreshStatus.
   useEffect(() => {
-    refreshStatus();
+    void launchStatus(() => setTrying(true)).then((first) => {
+      setStatus(first);
+      setTrying(false);
+    });
   }, []);
 
   // Locking drops the Rust client and resets the S3 side of the panels; Local keeps its state.
@@ -52,6 +57,7 @@ function App() {
   }, [unlocked]);
   useAutoLock(unlocked, () => void lock());
 
+  if (trying) return <MasterKeyScreen exists unlocking onDone={refreshStatus} />;
   if (!status) return null;
   if (!status.unlocked) return <MasterKeyScreen exists={status.exists} onDone={refreshStatus} />;
   if (view === "profiles") return <ProfilesScreen onBack={() => setView("browser")} onLock={lock} />;

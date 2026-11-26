@@ -23,3 +23,7 @@ Desktop app (Tauri) to manage files and directories on a MinIO server via its S3
 ## Commands
 
 **See [`docs/claude/commands.md`](docs/claude/commands.md)** — build/lint/test commands (to be filled once the Tauri project is scaffolded).
+
+## Deployment
+
+**See [`docs/claude/deployment.md`](docs/claude/deployment.md)** — macOS DMG, signing and notarization, Linux build prerequisites and bundles, CI commands.
