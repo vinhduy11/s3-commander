@@ -61,6 +61,19 @@ pub fn start_dir(path: &str) -> std::path::PathBuf {
     path.into()
 }
 
+/// The home directory from an environment value; only an absolute, non-empty path counts.
+pub fn home_dir_from(home: Option<std::ffi::OsString>) -> Result<String, AppError> {
+    match home.map(std::path::PathBuf::from) {
+        Some(path) if path.is_absolute() => Ok(path.to_string_lossy().into_owned()),
+        _ => Err(AppError::Local("the home directory is not known".into())),
+    }
+}
+
+/// The user's home directory (`HOME`), for `~` in the path field.
+pub fn home_dir() -> Result<String, AppError> {
+    home_dir_from(std::env::var_os("HOME"))
+}
+
 pub fn list_dir(path: &Path) -> Result<LocalListing, AppError> {
     let resolved = path.canonicalize().map_err(|err| describe_io_error(&err, path))?;
     let mut entries = Vec::new();
@@ -178,6 +191,20 @@ mod tests {
         fs::create_dir(dir.path().join("sub")).unwrap();
         let listing = list_dir(&dir.path().join("sub").join("..")).unwrap();
         assert_eq!(listing.path, dir.path().canonicalize().unwrap().to_string_lossy());
+    }
+
+    #[test]
+    fn home_dir_is_absolute_and_non_empty() {
+        let home = home_dir_from(Some("/home/me".into())).unwrap();
+        assert_eq!(home, "/home/me");
+        assert!(home_dir().map(|path| path.starts_with('/')).unwrap_or(true));
+    }
+
+    #[test]
+    fn home_dir_without_home_is_an_error_not_a_panic() {
+        assert!(home_dir_from(None).unwrap_err().to_string().contains("home directory"));
+        assert!(home_dir_from(Some("".into())).is_err());
+        assert!(home_dir_from(Some("relative/dir".into())).is_err());
     }
 
     #[test]

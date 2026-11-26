@@ -15,6 +15,7 @@ import { panelDragProps, useDropHighlight } from "./drag_drop";
 import { ColumnResizer } from "./column_resizer";
 import { fitWidths, type ColumnKey } from "./panel_columns";
 import { startViewer } from "../viewer/viewer_flow";
+import { PathField } from "./path_field";
 
 const ROW_HEIGHT = 22;
 const OVERSCAN_ROWS = 8;
@@ -51,6 +52,7 @@ export function FilePanel({ side }: { side: Side }) {
   const columnWidths = useBrowseStore((state) => state.columnWidths[side]);
   const [panelPx, setPanelPx] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(DEFAULT_VIEWPORT_HEIGHT);
+  const [editingPath, setEditingPath] = useState(false);
 
   const rows = buildRows(panel.source, panel.path, panel.entries);
   const { band, handlers: bandHandlers } = useRubberBand(side, listRef, ROW_HEIGHT);
@@ -108,6 +110,11 @@ export function FilePanel({ side }: { side: Side }) {
     const store = useBrowseStore.getState();
     const mod = event.metaKey || event.ctrlKey;
     const typing = event.target instanceof HTMLElement && /^(INPUT|SELECT|TEXTAREA)$/.test(event.target.tagName);
+    if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "l") {
+      event.preventDefault();
+      setEditingPath(true);
+      return;
+    }
     // Shift extends the marked range from the anchor, otherwise the cursor just moves.
     const move = (to: number) => (event.shiftKey ? extendSelection(side, to) : setCursor(side, to));
     if (event.key === "Escape") {
@@ -186,7 +193,14 @@ export function FilePanel({ side }: { side: Side }) {
             </option>
           ))}
         </select>
-        <span className="path" title={panel.path}>{panel.source?.kind === "bucket" ? `/${panel.path}` : panel.path}</span>
+        <PathField
+          side={side}
+          editing={editingPath}
+          onEditingChange={(editing, refocusPanel) => {
+            setEditingPath(editing);
+            if (refocusPanel) panelRef.current?.focus({ preventScroll: true });
+          }}
+        />
         <button
           type="button"
           className={`reload-btn${panel.loading ? " spinning" : ""}`}

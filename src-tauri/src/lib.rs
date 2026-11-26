@@ -287,6 +287,11 @@ fn aws_config_read_profile(name: String) -> Result<aws_config::AwsProfileSetting
 }
 
 #[tauri::command]
+fn home_dir() -> Result<String, AppError> {
+    local::home_dir()
+}
+
+#[tauri::command]
 async fn local_list_dir(path: String) -> Result<local::LocalListing, AppError> {
     local::list_dir(&local::start_dir(&path))
 }
@@ -480,6 +485,7 @@ pub fn run() {
             s3_list_buckets,
             s3_list_dir,
             local_list_dir,
+            home_dir,
             local_stat_paths,
             transfer_preview,
             transfer_start,

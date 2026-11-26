@@ -107,10 +107,19 @@ body.resizing { cursor: col-resize; -webkit-user-select: none; user-select: none
 body.resizing * { cursor: col-resize !important; }
 .panel { container-type: inline-size; box-shadow: 0 1px 2px rgb(20 24 40 / 5%); min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; outline: none; transition: border-color var(--ease), box-shadow var(--ease); }
 .panel.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), var(--shadow); }
-.phead { display: flex; gap: var(--sp-2); padding: 6px var(--sp-2); background: var(--surface-2); border-bottom: 1px solid var(--line); align-items: center; min-width: 0; }
+.phead { position: relative; display: flex; gap: var(--sp-2); padding: 6px var(--sp-2); background: var(--surface-2); border-bottom: 1px solid var(--line); align-items: center; min-width: 0; }
 .panel.active .phead { background: var(--surface); }
 .phead select { max-width: 45%; min-height: 24px; padding: 1px 4px; font-size: var(--text-sm); }
-.phead .path { font: var(--text-sm) var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.phead .path { all: unset; box-sizing: border-box; font: var(--text-sm) var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; cursor: text; padding: 2px 4px; border-radius: var(--radius); }
+.phead .path:hover { background: var(--accent-soft); }
+.phead .path:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.path-edit { flex: 1; min-width: 0; display: flex; }
+.path-input { flex: 1; min-width: 0; min-height: 24px; padding: 1px 6px; font: var(--text-sm) var(--font-mono); }
+.path-pop { position: absolute; left: var(--sp-2); right: var(--sp-2); top: 100%; z-index: 20; display: flex; flex-direction: column; gap: 2px; margin-top: 2px; }
+.path-error { padding: 4px var(--sp-2); font-size: var(--text-sm); color: var(--danger); background: var(--danger-soft); border: 1px solid var(--danger); border-radius: var(--radius); }
+.path-recents { display: flex; flex-direction: column; max-height: 220px; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 2px; }
+.path-recent { padding: 3px var(--sp-2); font: var(--text-sm) var(--font-mono); cursor: pointer; border-radius: var(--radius); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.path-recent:hover, .path-recent.on { background: var(--accent-soft); }
 .reload-btn { all: unset; box-sizing: border-box; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: var(--radius); color: var(--muted); cursor: pointer; }
 .reload-btn:hover:not(:disabled) { color: var(--fg); background: var(--accent-soft); }
 .reload-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

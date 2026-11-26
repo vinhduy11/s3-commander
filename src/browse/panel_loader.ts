@@ -3,14 +3,12 @@
 
 import { listBucketDir, listLocalDir } from "./browse_api";
 import { useBrowseStore, type PanelSource, type Side } from "./browse_store";
-import { buildRows, childPath, parentOf } from "./navigation";
+import { buildRows, childPath, parentOf, sameSource } from "./navigation";
 
 const requestCounter: Record<Side, number> = { left: 0, right: 0 };
 
-const sameSource = (first: PanelSource | null, second: PanelSource | null) =>
-  first?.kind === second?.kind && (first?.kind !== "bucket" || first.bucket === (second as typeof first).bucket);
-
-type LoadOptions = { focusName?: string; reload?: boolean; silent?: boolean };
+/** `fallback`: a Local folder that no longer lists shows its nearest parent (restore at launch); a reload does the same. */
+type LoadOptions = { focusName?: string; reload?: boolean; silent?: boolean; fallback?: boolean };
 
 /** Nearest folder above `path` that lists, with its listing; null when none does (not even "/"). */
 async function listNearestParent(path: string, isCurrent: () => boolean) {
@@ -24,7 +22,7 @@ async function listNearestParent(path: string, isCurrent: () => boolean) {
   return null;
 }
 
-async function load(side: Side, path: string, { focusName, reload = false, silent = false }: LoadOptions): Promise<void> {
+async function load(side: Side, path: string, { focusName, reload = false, silent = false, fallback = false }: LoadOptions): Promise<void> {
   const store = useBrowseStore.getState();
   const { source } = store[side];
   const { profileId } = store;
@@ -49,7 +47,7 @@ async function load(side: Side, path: string, { focusName, reload = false, silen
         if (isCurrent()) useBrowseStore.getState().setListing(side, { ...listing, nextToken: null }, { focusName, keep: reload });
         else dropStale();
       } catch (err) {
-        if (!reload) throw err;
+        if (!reload && !fallback) throw err;
         // The folder is gone or unreadable: show the nearest parent that lists.
         const parent = await listNearestParent(path, isCurrent);
         if (!isCurrent()) return dropStale();
@@ -78,6 +76,22 @@ export const openPath = (side: Side, path: string, focusName?: string): Promise<
  */
 export const reloadPanel = (side: Side, options: { silent?: boolean } = {}): Promise<void> =>
   load(side, useBrowseStore.getState()[side].path, { reload: true, silent: options.silent });
+
+/** Switch the panel to `source` and list `path` there in one request (no extra root listing). */
+export async function openLocation(side: Side, source: PanelSource, path: string): Promise<void> {
+  useBrowseStore.getState().setSource(side, source);
+  await openPath(side, path);
+}
+
+/**
+ * Open a remembered location. A Local folder that vanished shows its nearest parent that lists; when
+ * nothing lists, the default start (home directory / bucket root) is opened instead.
+ */
+export async function restoreLocation(side: Side, source: PanelSource, path: string): Promise<void> {
+  useBrowseStore.getState().setSource(side, source);
+  await load(side, path, { fallback: true });
+  if (path !== "" && useBrowseStore.getState()[side].error) await openPath(side, "");
+}
 
 export async function openSource(side: Side, source: PanelSource | null): Promise<void> {
   useBrowseStore.getState().setSource(side, source);

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Go to path and remember the last folder</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:860px;margin:32px auto;padding:0 16px;color:#1b1d24}h2{border-bottom:1px solid #ddd;padding-bottom:4px}code{background:#f0f1f5;padding:0 3px;border-radius:3px}</style></head><body>
+<h1>Go to path and remember the last folder</h1>
+<h2>Specs</h2>
+<ul>
+<li>Owner request: (1) move a panel straight to a directory by typing or pasting its path; (2) remember the last folder accessed and restore it at the next launch.</li>
+<li>Editable path field in each panel header (click or Cmd/Ctrl+L; Enter goes, Esc and blur cancel; text selected on focus; recents dropdown of 20 per panel kind). One pure parser <code>parseLocation(input, current)</code>: Local (absolute, <code>~</code>, relative, <code>file://</code>, quotes, trailing slash) and Server (<code>s3://bucket/prefix/</code>, <code>/prefix/</code>, relative), textual <code>.</code> and <code>..</code> never above the root, kind switches with a notice.</li>
+<li>A target that cannot be listed keeps the old location and shows a readable error under the field. Navigation uses the existing loader.</li>
+<li>Persist (guarded, versioned, validated): Local path per side, server bucket and prefix per profile, active panel; restore at launch and on profile switch with nearest-parent fallback; first run unchanged. Names only; documented in safety.md.</li>
+<li>Out of scope: bookmarks, file watchers, operations, selection, sorting, updater, vault, settings.</li>
+</ul>
+<h2>Actions</h2>
+<ul>
+<li>Rust: <code>local::home_dir_from</code> / <code>home_dir</code> and the command <code>home_dir</code> (error string when HOME is missing, empty or relative; never panics). 2 tests.</li>
+<li>New frontend files in <code>src/browse/</code>: <code>parse_location.ts</code>, <code>go_to_flow.ts</code>, <code>location_memory.ts</code>, <code>last_location.ts</code>, <code>path_field.tsx</code> and their tests (parse table, memory, flow, restore and save, field behaviour).</li>
+<li>Edits to shared files, small and additive: <code>panel_loader.ts</code> (<code>openLocation</code>, <code>restoreLocation</code>, <code>fallback</code> option reusing the reload parent fallback), <code>navigation.ts</code> (<code>sameSource</code> moved here), <code>browse_api.ts</code> (<code>homeDir</code>), <code>file_panel.tsx</code> (PathField, Cmd/Ctrl+L), <code>browser_screen.tsx</code> (restore and save wiring), <code>styles.css</code>, <code>lib.rs</code> (command registration).</li>
+<li>Docs: README structure, CHANGELOG, architect (syntax table, keys, restore order), safety, rule.</li>
+</ul>
+<h2>Tradeoffs</h2>
+<ul>
+<li><b>Failure handling by snapshot</b>: after a failed source switch the previous panel state is put back instead of adding a "try listing first" API to the loader; simple, but a switch briefly shows the empty new source while loading.</li>
+<li><b>Save by polling the store</b>: a debounced subscriber reads settled panels (not loading, with a source) rather than hooking every navigation call; one place, but a navigation that lasts longer than the 400 ms debounce is saved when it finishes.</li>
+<li><b>Cmd/Ctrl+L is panel-level</b> (the focused panel), not a window listener like Cmd/Ctrl+R; when focus is on the page body it does nothing until a panel is clicked.</li>
+<li><b>Left panel remembered as server with no usable bucket opens Local home</b> (also after a profile switch, where it used to stay empty); chosen over a blank panel.</li>
+<li><b>Recents shared per kind</b> (not per profile or per panel), as requested; server recents of another profile may name a bucket that is missing, which gives the inline error.</li>
+<li>Remembered names stay in local storage after Lock (only names, documented), instead of clearing on Lock which would defeat restore at the next launch.</li>
+</ul>
+<h2>Measured</h2>
+<ul>
+<li><code>npm test</code>: 50 files, 772 tests pass (red run first: 5 new files failed to import). <code>npm run build</code> ok. <code>cargo test</code>: 306 passed, 2 ignored; <code>cargo check</code> no warnings (red run first: compile error on the missing function).</li>
+<li>Chromium mock screenshots (in-page mock of the Tauri commands, fake data), light and dark: field with recents, inline errors (folder, bucket), a Local and a server jump, restored state after a page reload (including the active panel).</li>
+</ul>
+<h2>Inferred, not exercised</h2>
+<ul>
+<li>The real Tauri window and WebKit text input, selection, focus and Cmd+L; a real filesystem (symlinks, permissions, <code>~</code> with a real HOME); a real server; an app restart in the real app (only a page reload in Chromium with the mock); persistence of the webview's local storage across real app launches.</li>
+</ul>
+</body></html>

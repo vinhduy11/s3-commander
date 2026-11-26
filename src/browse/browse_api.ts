@@ -40,3 +40,6 @@ export async function listLocalDir(path: string) {
 export const testProfile = (profileId: string) => invoke<number>("profile_test", { profileId });
 
 export const duplicateProfile = (profileId: string) => invoke<Profile>("profile_duplicate", { profileId });
+
+/** The user's home directory (absolute); rejects when the OS does not tell. */
+export const homeDir = () => invoke<string>("home_dir");

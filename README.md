@@ -61,6 +61,11 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 │       ├── reload_state.ts        # pure rule for a reload: cursor by name, marks and anchor pruned to names that still exist
 │       ├── reload_triggers.ts     # Cmd/Ctrl+R (active panel) and the silent reload of Local panels when the window regains focus
 │       ├── file_panel.tsx         # one panel: source selector, sortable column headers, virtualised list, keyboard, footer hint
+│       ├── path_field.tsx         # the editable path of a panel header (click or Cmd/Ctrl+L; Enter goes, Esc/blur cancel) with the recent-locations listbox
+│       ├── parse_location.ts      # pure `parseLocation(input, current)`: local (absolute, ~, relative, file://) and server (s3://bucket/prefix, /prefix, relative) syntax
+│       ├── go_to_flow.ts          # go to what was typed through the loader; keeps the old location on failure; records recent locations
+│       ├── location_memory.ts     # remembered last folders and recents: versioned, validated, guarded localStorage plus an in-memory copy (names only)
+│       ├── last_location.ts       # saves the last folder after navigation (debounced) and restores it at launch / profile switch
 │       ├── context_menu.ts        # right-click menu: state, data-driven item list, selection rules, position clamp
 │       ├── context_menu_view.tsx  # menu surface (role=menu), keyboard, close rules
 │       ├── drag_drop_logic.ts     # pure drag rules: threshold, drag set, hit test, drop target, refusals, auto-scroll step

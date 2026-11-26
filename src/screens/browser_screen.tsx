@@ -8,7 +8,7 @@ import { FilePanel } from "../browse/file_panel";
 import { PanelSplitter, splitColumns } from "../browse/panel_splitter";
 import { listBuckets, listProfiles, type Profile } from "../browse/browse_api";
 import { useBrowseStore } from "../browse/browse_store";
-import { openSource } from "../browse/panel_loader";
+import { installLocationSave, restoreLocalPanels, restoreServerPanels } from "../browse/last_location";
 import { installFocusReload, installReloadKey } from "../browse/reload_triggers";
 import { TransferQueuePanel } from "../queue/queue_panel";
 import { OpsDialogs } from "../ops/ops_dialogs";
@@ -60,12 +60,15 @@ export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: 
     };
   }, []);
 
-  // Local panel starts at the home directory, only when it has no state yet (it survives remounts).
+  // Local panels start at their remembered folder (first run: the left one at the home directory), only when empty (they survive remounts).
   useEffect(() => {
-    if (useBrowseStore.getState().left.source === null) void openSource("left", { kind: "local" });
+    void restoreLocalPanels();
   }, []);
 
-  // Buckets of the active profile; the right panel opens the first one if it is still empty.
+  // The last folder of each panel is remembered after every navigation.
+  useEffect(() => installLocationSave(), []);
+
+  // Buckets of the active profile; empty server panels open their remembered location (the right one else the first bucket).
   useEffect(() => {
     if (!profileId) return;
     let cancelled = false;
@@ -75,7 +78,7 @@ export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: 
         if (cancelled) return;
         const store = useBrowseStore.getState();
         store.setBuckets(names);
-        if (store.right.source === null && names.length) void openSource("right", { kind: "bucket", bucket: names[0] });
+        void restoreServerPanels(profileId, names);
       })
       .catch((err) => !cancelled && setTopError(String(err)));
     return () => {

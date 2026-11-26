@@ -7,6 +7,10 @@ export type Row = PanelEntry & { isUp?: boolean };
 
 const UP_ROW: Row = { name: "..", isDir: true, size: 0, modified: null, isUp: true };
 
+/** Same kind, and for a bucket the same bucket. */
+export const sameSource = (first: PanelSource | null, second: PanelSource | null): boolean =>
+  first?.kind === second?.kind && (first?.kind !== "bucket" || first.bucket === (second as typeof first).bucket);
+
 export function isRoot(source: PanelSource, path: string): boolean {
   return source.kind === "local" ? path === "/" || path === "" : path === "";
 }

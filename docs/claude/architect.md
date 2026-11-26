@@ -52,7 +52,28 @@ Design from the project owner; the vault, browsing (step 2), its dual-pane UI, t
 
 - Context menu (step 3c): `context_menu.ts` (state, item list, selection rules) and `context_menu_view.tsx` (surface); handlers reuse `ops_flow` and `openRowAt` in `panel_loader.ts`.
 
-## Panel reload (implemented)
+## Go to path and remember the last folder (implemented)
+
+- **Path field** (`path_field.tsx`): the header path is a button; click or Cmd/Ctrl+L (handled by the focused panel) opens an input (text selected, aria-label "Path of the left panel"). Enter calls `goToLocation` (`go_to_flow.ts`); Esc or blur cancels; keys inside the field never reach the panel. Errors show under the field (`role="alert"`), recents in a listbox (Up/Down/Enter or click; mousedown is prevented so the blur does not cancel first).
+- **Syntax** (`parseLocation(input, {source, path, home, buckets, hasProfile})`, pure). Input is trimmed, one pair of surrounding quotes dropped, `.`/`..`/empty segments resolved textually (never above the root):
+
+| Panel | Input | Result |
+|---|---|---|
+| Local | `/a/b`, `/a/b/` | absolute path |
+| Local | `~`, `~/x` | home (Rust `home_dir`) + rest; `~name` is a relative name |
+| Local | `sub`, `./sub`, `../x` | relative to the current folder (home when none) |
+| Local | `file:///a%20b` | decoded absolute path |
+| Local | `s3://bucket/prefix` | switches to Server (needs an active profile; bucket must be in the list) |
+| Server | `s3://bucket/prefix/` | that bucket of the active profile; bucket must exist |
+| Server | `/prefix/` | prefix from the root of the current bucket |
+| Server | `sub/`, `../x/` | relative to the current prefix; prefixes end with `/` |
+| Server | `~`, `~/x`, `file:///x` | switches to Local |
+
+- **Navigation**: same source goes through `openPath`; another source through `openLocation` (`setSource` + one listing). If the loader reports an error, the error text is returned to the field, the footer error is cleared and, after a source switch, the previous panel state is put back. A successful jump adds `/path` or `s3://bucket/prefix/` to the recents of the panel kind (20, newest first, deduplicated).
+- **Persistence** (`location_memory.ts`, key `s3c.last-location.v1`): `{v, active, kinds{side}, local{side: path}, servers{profileId: {side: {bucket, prefix}}}, recents{local[], server[]}}`. Read and written in try/catch, validated and clamped (paths 2048 chars, 50 profiles, 20 recents, prototype keys ignored); an in-memory copy makes storage-unavailable behave the same. `installLocationSave` (`last_location.ts`) watches the store and writes after 400 ms of quiet; a panel that is loading, empty or without a source keeps its earlier value; server locations are recorded only with an active profile.
+- **Restore order**: (1) at mount `restoreLocalPanels`: empty panels remembered as local open their path, the active panel is set; nothing remembered means the left panel opens home (as before). (2) when the bucket list of the profile arrives `restoreServerPanels(profileId, buckets)`: empty panels remembered as server open the remembered bucket and prefix of that profile if the bucket exists, else the right panel opens the first bucket root and a left panel opens Local home. A profile switch empties the server panels and runs stage 2 for the new profile. `restoreLocation` lists the path, a vanished Local folder shows its nearest parent (the reload fallback, `fallback` option of the loader), and if still nothing lists the default start (`""`: home or bucket root) is opened.
+
+## Panel reload (implemented)## Panel reload (implemented)
 
 - `reloadPanel(side, { silent? })` in `panel_loader.ts` reloads the panel's current path through the same internal `load` as `openPath` (one request counter per side, so a response that arrives after the user navigated is dropped and `loading` ends as before). The old rows stay in the store while loading; on success `setListing(..., { keep: true })` replaces them and `keepAfterReload` (`reload_state.ts`, pure) keeps the cursor by entry name (nearest index when gone), the marks and the anchor only for names that still exist; scroll, sort, column widths and splitter are not touched. A server reload always asks for the first page (continuation token dropped) and keeps the sort; an empty prefix is an empty listing, not an error.
 - Failure: the old rows stay and the error shows in the footer. A Local folder that fails to list falls back to the nearest parent that lists and sets `notice` ("Folder no longer exists, showing <parent>"); the notice is cleared by the next listing. `silent` shows no loading state and no error.
