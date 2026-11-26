@@ -14,24 +14,32 @@ export async function openPath(side: Side, path: string, focusName?: string): Pr
   const store = useBrowseStore.getState();
   const { source } = store[side];
   const { profileId } = store;
-  if (!source) return;
+  if (!source || (source.kind === "bucket" && !profileId)) return;
   const ticket = ++requestCounter[side];
+  // A Local listing does not depend on the profile, so a profile change must not drop it.
   const isCurrent = () => {
     const now = useBrowseStore.getState();
-    return ticket === requestCounter[side] && now.profileId === profileId && sameSource(now[side].source, source);
+    const sameProfile = source.kind === "local" || now.profileId === profileId;
+    return ticket === requestCounter[side] && sameProfile && sameSource(now[side].source, source);
+  };
+  // A dropped response must not leave loading=true unless a newer request owns the panel.
+  const dropStale = () => {
+    if (ticket === requestCounter[side]) useBrowseStore.getState().setLoading(side, false);
   };
   store.setLoading(side, true);
   try {
     if (source.kind === "local") {
       const listing = await listLocalDir(path);
       if (isCurrent()) useBrowseStore.getState().setListing(side, { ...listing, nextToken: null }, { focusName });
+      else dropStale();
     } else {
-      if (!profileId) return;
-      const page = await listBucketDir(profileId, source.bucket, path, null);
+      const page = await listBucketDir(profileId as string, source.bucket, path, null);
       if (isCurrent()) useBrowseStore.getState().setListing(side, { path, ...page }, { focusName });
+      else dropStale();
     }
   } catch (err) {
     if (isCurrent()) useBrowseStore.getState().setError(side, String(err));
+    else dropStale();
   }
 }
 

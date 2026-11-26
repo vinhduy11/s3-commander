@@ -1,0 +1,17 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Panel loading fix</title></head><body>
+<h1>Panel stuck on "Loading..." fix</h1>
+<h2>Specs</h2>
+<p>On a fresh launch the left Local panel could stay on "Loading..." forever; re-selecting the source fixed it. Seen in browser runs with mocked Tauri commands.</p>
+<h2>Actions</h2>
+<ul>
+<li>Measured: new <code>src/browse/panel_loader.test.ts</code> (6 tests). Before the fix 3 failed: Local listing and Local error lost when <code>setProfile</code> changes <code>profileId</code> while the request is in flight (panel left with loading=true), and a bucket source with no profile left loading=true. Confirms the hypothesis in <code>openPath</code> (<code>isCurrent()</code> compared <code>profileId</code> for Local too).</li>
+<li>Fix in <code>openPath</code> (<code>src/browse/panel_loader.ts</code>, the one shared place for <code>openSource</code>, <code>enterDir</code>, <code>goUp</code>): profile check only for bucket sources; the no-profile bucket guard runs before <code>setLoading(true)</code>; a dropped response clears loading when its ticket is still the latest.</li>
+<li>Measured: bucket responses dropped by a profile change did not leave loading=true even before the fix, because <code>setProfile</code> resets bucket panels; kept as regression tests. A superseded request still keeps loading for the newer one (test).</li>
+<li>Measured: <code>npm test</code> 22 passed, <code>npm run build</code> ok.</li>
+</ul>
+<h2>Tradeoffs</h2>
+<ul>
+<li>The <code>dropStale</code> guard is a safety net, not needed by any currently measured path other than via the ticket check; kept small so future drop reasons cannot strand the spinner.</li>
+<li><code>loadMore</code> not changed: bucket only, and every drop reason resets the panel. Inferred from reading the store, no test.</li>
+<li>Inferred, not exercised: timing in the real Tauri window (the race needs <code>profile_list</code> to resolve before <code>local_list_dir</code>); only mocked promises were used.</li>
+</ul></body></html>
