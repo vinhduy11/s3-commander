@@ -48,6 +48,8 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 │       ├── sort.ts                # pure comparator (name, ext, size, date; folders first; natural order) and header-click cycle
 │       ├── panel_split.ts         # pure split rules (clamp, keyboard step, pointer to ratio) and guarded localStorage load/save
 │       ├── panel_splitter.tsx     # the draggable, keyboard-operable divider between the panels (role=separator)
+│       ├── panel_columns.ts       # pure column-width rules (limits, clamp, step, reset, fit to panel width) and guarded localStorage load/save
+│       ├── column_resizer.tsx     # the draggable, keyboard-operable border on the Ext/Size/Date header cells (role=separator)
 │       ├── browse_api.ts          # typed wrappers over the Tauri commands
 │       ├── panel_loader.ts        # loads listings into the store, drops stale responses; loadAll (capped) for server panels
 │       ├── file_panel.tsx         # one panel: source selector, sortable column headers, virtualised list, keyboard, footer hint

@@ -4,6 +4,7 @@
 
 import { create } from "zustand";
 import { buildRows } from "./navigation";
+import { clampWidth, loadColumns, resetWidth, saveColumns, type ColumnKey, type PanelColumns } from "./panel_columns";
 import { clampRatio, loadSplit, saveSplit } from "./panel_split";
 import { DEFAULT_SORT, nextSort, sortEntries, type SortKey, type SortState } from "./sort";
 
@@ -40,6 +41,10 @@ export type BrowseState = {
   /** Layout slice: the left panel's share of the free width, persisted in localStorage. */
   splitRatio: number;
   setSplitRatio: (ratio: number) => void;
+  /** Layout slice: Ext/Size/Date widths per panel (the user's values; the panel fits them to its width), persisted. */
+  columnWidths: PanelColumns;
+  setColumnWidth: (side: Side, col: ColumnKey, px: number) => void;
+  resetColumnWidth: (side: Side, col: ColumnKey) => void;
   setSource: (side: Side, source: PanelSource | null) => void;
   setListing: (side: Side, listing: Listing, options?: ListingOptions) => void;
   /** Header click and context menu: a new key sorts ascending, the active key reverses. */
@@ -77,6 +82,7 @@ export const initialBrowseState = () => ({
   profileId: null as string | null,
   buckets: [] as string[],
   splitRatio: loadSplit(),
+  columnWidths: loadColumns(),
 });
 
 const SIDES: Side[] = ["left", "right"];
@@ -143,6 +149,13 @@ export const useBrowseStore = create<BrowseState>((set) => {
       saveSplit(next);
       set({ splitRatio: next });
     },
+    setColumnWidth: (side, col, px) =>
+      set((state) => {
+        const columnWidths = { ...state.columnWidths, [side]: { ...state.columnWidths[side], [col]: clampWidth(col, px) } };
+        saveColumns(columnWidths);
+        return { columnWidths };
+      }),
+    resetColumnWidth: (side, col) => useBrowseStore.getState().setColumnWidth(side, col, resetWidth(col)),
     setActive: (active) => set({ active }),
     setBuckets: (buckets) => set({ buckets }),
     setProfile: (profileId) =>

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Resizable columns (step 3g)</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:820px;margin:2rem auto;padding:0 1rem}code{background:#eee;padding:0 3px;border-radius:3px}</style></head>
+<body>
+<h1>Resizable columns in each panel (step 3g)</h1>
+<h2>Specs</h2>
+<ul>
+<li>Drag the border between header cells to change Ext, Size and Date; Name takes the rest. Per-panel widths in the store layout slice, persisted in localStorage under its own versioned key, guarded and clamped, UI works without storage.</li>
+<li>Min/max per column so <code>&lt;DIR&gt;</code> and a full date fit at the minimum; double-click resets a column; each border is a focusable <code>role="separator"</code> with ArrowLeft/ArrowRight (Shift = bigger step) and Home; pointer events with capture, no HTML5 drag.</li>
+<li>Header and rows share widths; Date still hides in a narrow panel; Name never collapses below a minimum; sort, context menu, drag and drop, marks and keyboard navigation do not regress.</li>
+</ul>
+<h2>Actions</h2>
+<ul>
+<li>New <code>src/browse/panel_columns.ts</code>: limits (Ext 48..160, Size 80..200, Date 120..220), <code>clampWidth</code>, <code>stepWidth</code>, <code>resetWidth</code>, <code>fitWidths</code>, guarded <code>loadColumns</code>/<code>saveColumns</code> (key <code>s3c.panel-columns.v1</code>).</li>
+<li>New <code>src/browse/column_resizer.tsx</code>: the separator component (pointer capture, keys, double-click).</li>
+<li><code>browse_store.ts</code>: <code>columnWidths</code>, <code>setColumnWidth</code>, <code>resetColumnWidth</code>. <code>file_panel.tsx</code>: measures the panel, publishes <code>--w-ext/--w-size/--w-date</code>, renders a resizer in the Ext, Size and Date header cells. <code>styles.css</code>: the single <code>.row</code> template reads the variables (also in the container and media rules), <code>.col-resizer</code> block appended.</li>
+<li>Tests: <code>panel_columns.test.ts</code> (pure functions, persistence with garbage and throwing storage) and <code>column_resizer.test.tsx</code> (semantics, drag, keyboard, double-click, no sort on drag, per-panel, remount, Name minimum, narrow panel). README, CHANGELOG and <code>docs/claude/rule.md</code> updated. No Rust change.</li>
+</ul>
+<h2>Tradeoffs</h2>
+<ul>
+<li><b>Border on the left edge of a column, drag left widens.</b> Dragging the right edge of Ext would push Size and Date out of the panel because Name is the flexible column; the left-edge rule keeps the right edge of each column fixed. Consequence: the border between Ext and Size resizes Size, not Ext.</li>
+<li><b>The store keeps the user's widths; the panel fits them for display.</b> Shrinking a panel never rewrites the stored value, so growing it restores the choice. Cost: dragging beyond what the panel can show changes the stored value without a visible change until the panel grows (inferred to be acceptable, not user-tested).</li>
+<li><b>Name minimum is 96 px, but the column minimums win.</b> In a 240 px panel Name is about 70 px (the same as before this change); the minimums for <code>&lt;DIR&gt;</code> and the date are not broken to save Name.</li>
+<li><b>Narrow panel (420 px or less) widths:</b> the Size column now follows the user width (minimum 80) instead of the old fixed 72 px, so a narrow panel has 8 px less for Name than before.</li>
+<li>The 420 px threshold exists twice (CSS container query and <code>HIDE_DATE_PX</code>); a CSS custom property cannot be used in a container query condition, so a comment in both places and a rule line in <code>rule.md</code> keep them in sync.</li>
+</ul>
+<h2>Evidence: measured vs inferred</h2>
+<ul>
+<li>Measured: 349 Vitest tests pass; <code>npm run build</code> succeeds; in a Chromium mock (fake data, Vite on port 1437) real mouse drags changed only the dragged column (Size 84 to 134, Ext 56 to 48), a header sort stayed Name ascending after drags, the minimum widths were 48/80/120, Shift+ArrowLeft on a focused Date border widened it 124 to 156, a 238 px panel hid Date.</li>
+<li>Inferred, not exercised: the real Tauri window and WebKit pointer capture, a Retina display, real keyboard use, the character-width assumption behind the minimums (about 7.5 px per mono character at 12 px).</li>
+</ul>
+</body></html>

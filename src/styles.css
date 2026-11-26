@@ -114,17 +114,18 @@ body.resizing * { cursor: col-resize !important; }
 .tag { font: 700 10px/1 var(--font-ui); letter-spacing: 0.06em; color: var(--accent); border: 1px solid currentColor; padding: 3px 5px; border-radius: var(--radius); display: inline-flex; align-items: center; gap: 4px; flex: none; }
 .tag.local { color: var(--ok); }
 
-.row { display: grid; grid-template-columns: minmax(0, 1fr) 56px 84px 124px; gap: 0 var(--sp-2); align-items: center; padding: 0 var(--sp-2); font: var(--text-sm) var(--font-mono); white-space: nowrap; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) var(--w-ext, 56px) var(--w-size, 84px) var(--w-date, 124px); gap: 0 var(--sp-2); align-items: center; padding: 0 var(--sp-2); font: var(--text-sm) var(--font-mono); white-space: nowrap; }
 /* a narrowed panel (splitter) drops the Date column so Name keeps room; same columns as the narrow window */
 @container (max-width: 420px) {
   .date { display: none; }
-  .row { grid-template-columns: minmax(0, 1fr) 48px 72px; }
+  .row { grid-template-columns: minmax(0, 1fr) var(--w-ext, 56px) var(--w-size, 84px); }
 }
 .row > span { overflow: hidden; text-overflow: ellipsis; }
 .list-head { background: var(--surface); border-bottom: 1px solid var(--line); font: 600 var(--text-xs) var(--font-ui); text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); padding: 4px calc(var(--sp-2) + 4px + 10px) 4px calc(var(--sp-2) + 4px); }
 .list-head .sort-btn { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 3px; max-width: 100%; cursor: pointer; text-transform: inherit; letter-spacing: inherit; }
 .list-head .sort-btn:hover { color: var(--fg); }
 .list-head .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 2px; }
+.list-head > [role="columnheader"] { position: relative; overflow: visible; }
 .list-head .num { text-align: right; }
 .list-head .num .sort-btn { float: right; }
 .sort-arrow { font-size: 8px; color: var(--accent); }
@@ -162,7 +163,7 @@ body.resizing * { cursor: col-resize !important; }
   .panel-splitter { display: none; }
   .fkeys { grid-template-columns: repeat(4, 1fr); }
   .date { display: none; }
-  .row { grid-template-columns: minmax(0, 1fr) 56px 84px; }
+  .row { grid-template-columns: minmax(0, 1fr) var(--w-ext, 56px) var(--w-size, 84px); }
 }
 
 /* ---- modal dialogs (file operations) ---- */
@@ -234,3 +235,9 @@ body.dragging * { cursor: grabbing !important; }
 .clipboard-field { position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .toast { position: fixed; z-index: 30; left: 50%; bottom: var(--sp-6); transform: translateX(-50%); max-width: min(480px, calc(100% - var(--sp-6))); padding: var(--sp-2) var(--sp-3); background: var(--surface); border: 1px solid var(--ok); border-radius: var(--radius-lg); box-shadow: var(--shadow-modal); color: var(--fg); font-size: var(--text-md); pointer-events: none; }
 .toast.failed { border-color: var(--danger); }
+
+/* ---- resizable columns: a border on the left edge of the Ext, Size and Date header cells ---- */
+.col-resizer { position: absolute; top: -4px; bottom: -4px; left: calc(var(--sp-2) / -2 - 4px); width: 8px; cursor: col-resize; touch-action: none; outline: none; }
+.col-resizer::before { content: ""; position: absolute; top: 4px; bottom: 4px; left: 50%; width: 1px; margin-left: -0.5px; background: var(--line); transition: background var(--ease), width var(--ease); }
+.col-resizer:hover::before, body.resizing .col-resizer:active::before { background: var(--accent); width: 2px; }
+.col-resizer:focus-visible::before { background: var(--accent); width: 3px; margin-left: -1.5px; box-shadow: 0 0 0 2px var(--accent-soft); }

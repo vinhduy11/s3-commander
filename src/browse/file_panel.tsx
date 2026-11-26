@@ -7,11 +7,17 @@ import { goUp, loadAll, loadMore, openRowAt, openSource } from "./panel_loader";
 import { type SortKey } from "./sort";
 import { openEmptyMenu, openMenuAtCursor, openRowMenu } from "./context_menu";
 import { panelDragProps, useDropHighlight } from "./drag_drop";
+import { ColumnResizer } from "./column_resizer";
+import { fitWidths, type ColumnKey } from "./panel_columns";
 
 const ROW_HEIGHT = 22;
 const OVERSCAN_ROWS = 8;
 const LOAD_MORE_DISTANCE_ROWS = 40;
 const DEFAULT_VIEWPORT_HEIGHT = 400;
+
+/** The column widths as CSS custom properties; the single `.row` template in styles.css reads them. */
+const columnVars = (widths: Record<ColumnKey, number>) =>
+  ({ "--w-ext": `${widths.ext}px`, "--w-size": `${widths.size}px`, "--w-date": `${widths.date}px` }) as React.CSSProperties;
 
 const HEADERS: { key: SortKey; label: string; className?: string }[] = [
   { key: "name", label: "Name" },
@@ -36,6 +42,8 @@ export function FilePanel({ side }: { side: Side }) {
 
   const panelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const columnWidths = useBrowseStore((state) => state.columnWidths[side]);
+  const [panelPx, setPanelPx] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(DEFAULT_VIEWPORT_HEIGHT);
 
   const rows = buildRows(panel.source, panel.path, panel.entries);
@@ -49,6 +57,16 @@ export function FilePanel({ side }: { side: Side }) {
     observer.observe(list);
     return () => observer.disconnect();
   }, [side]);
+
+  // The panel's own width decides how much of the user's column widths fits (Name keeps a minimum).
+  useLayoutEffect(() => {
+    const node = panelRef.current;
+    if (!node) return;
+    setPanelPx(node.clientWidth);
+    const observer = new ResizeObserver(() => setPanelPx(node.clientWidth));
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   useLayoutEffect(() => {
     if (isActive) panelRef.current?.focus({ preventScroll: true });
@@ -117,6 +135,7 @@ export function FilePanel({ side }: { side: Side }) {
       id={`panel-${side}`}
       ref={panelRef}
       className={`panel${isActive ? " active" : ""}${drop.panelCue ? ` drop-${drop.panelCue}` : ""}`}
+      style={columnVars(fitWidths(columnWidths, panelPx))}
       {...panelDragProps(side)}
       tabIndex={0}
       onKeyDown={onKeyDown}
@@ -152,6 +171,7 @@ export function FilePanel({ side }: { side: Side }) {
                 {label}
                 {active && <span className="sort-arrow" aria-hidden="true">{panel.sort.dir === "asc" ? "▲" : "▼"}</span>}
               </button>
+              {key !== "name" && <ColumnResizer side={side} col={key} label={label} />}
             </span>
           );
         })}
