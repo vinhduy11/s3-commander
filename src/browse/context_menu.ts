@@ -1,0 +1,104 @@
+// Right-click context menu: state, the item list and the selection rules. Pure of React so it is
+// testable on its own. Every item's handler calls the same flow the F-key calls (ops_flow), so
+// there is one implementation of each operation. To add an action later (View, Edit, presigned
+// URL) append one entry in `rowItems`; nothing else changes.
+
+import { create } from "zustand";
+import { startDelete, startNewFolder, startRename, startTransfer } from "../ops/ops_flow";
+import { useOpsStore } from "../ops/ops_store";
+import { cursorTarget, panelLocation, selectTargets } from "../ops/ops_targets";
+import { useBrowseStore, type Side } from "./browse_store";
+import { buildRows } from "./navigation";
+import { openRowAt } from "./panel_loader";
+
+export type MenuKind = "row" | "empty";
+export type MenuItem = { id: string; label: string; shortcut?: string; enabled: boolean; run: () => void };
+type OpenMenu = { side: Side; kind: MenuKind; x: number; y: number };
+
+export const useContextMenu = create<{ menu: OpenMenu | null }>(() => ({ menu: null }));
+export const closeMenu = () => useContextMenu.setState({ menu: null });
+
+const MARGIN = 4;
+
+/** Keep a menu of `size` inside the window, at least MARGIN from every edge. */
+export function clampMenuPosition(
+  x: number,
+  y: number,
+  size: { width: number; height: number },
+  win: { width: number; height: number },
+): { x: number; y: number } {
+  const fit = (pos: number, extent: number, limit: number) => Math.max(MARGIN, Math.min(pos, limit - extent - MARGIN));
+  return { x: fit(x, size.width, win.width), y: fit(y, size.height, win.height) };
+}
+
+const browse = () => useBrowseStore.getState();
+const dialogOpen = () => useOpsStore.getState().dialog !== null;
+
+function activate(side: Side) {
+  browse().setActive(side);
+}
+
+/** Right-click on row `index`: an unmarked row becomes the only selection; a marked row keeps the marks. */
+export function openRowMenu(side: Side, index: number, x: number, y: number): void {
+  if (dialogOpen()) return;
+  const panel = browse()[side];
+  const row = buildRows(panel.source, panel.path, panel.entries)[index];
+  if (!row) return;
+  if (row.isUp || !panel.marked[row.name]) browse().clearMarks(side);
+  browse().setCursor(side, index);
+  activate(side);
+  useContextMenu.setState({ menu: { side, kind: "row", x, y } });
+}
+
+export function openEmptyMenu(side: Side, x: number, y: number): void {
+  if (dialogOpen()) return;
+  activate(side);
+  useContextMenu.setState({ menu: { side, kind: "empty", x, y } });
+}
+
+/** Keyboard (Shift+F10 / ContextMenu key): the menu of the cursor row. */
+export function openMenuAtCursor(side: Side, x: number, y: number): void {
+  if (dialogOpen()) return;
+  const panel = browse()[side];
+  if (panel.cursor >= buildRows(panel.source, panel.path, panel.entries).length) return openEmptyMenu(side, x, y);
+  openRowMenu(side, panel.cursor, x, y);
+}
+
+/** Verb for the other panel: local to server uploads, server to local downloads, otherwise copies. */
+function transferVerb(side: Side): string {
+  const here = browse()[side].source?.kind;
+  const there = browse()[side === "left" ? "right" : "left"].source?.kind;
+  if (here === "local" && there === "bucket") return "Upload";
+  if (here === "bucket" && there === "local") return "Download";
+  return "Copy";
+}
+
+function rowItems(side: Side): MenuItem[] {
+  const panel = browse()[side];
+  const other = browse()[side === "left" ? "right" : "left"];
+  const row = buildRows(panel.source, panel.path, panel.entries)[panel.cursor];
+  const targets = selectTargets(panel);
+  const canTransfer = targets.length > 0 && panelLocation(panel) !== null && panelLocation(other) !== null;
+  const items: MenuItem[] = [];
+  if (row?.isDir && targets.length <= 1) {
+    items.push({ id: "open", label: "Open", shortcut: "Enter", enabled: true, run: () => openRowAt(side, panel.cursor) });
+  }
+  items.push(
+    { id: "copy", label: `${transferVerb(side)} to other panel`, shortcut: "F5", enabled: canTransfer, run: () => void startTransfer("copy", side) },
+    { id: "move", label: "Move to other panel", shortcut: "F6", enabled: canTransfer, run: () => void startTransfer("move", side) },
+    { id: "rename", label: "Rename", shortcut: "F2", enabled: targets.length === 1 && cursorTarget(panel) !== null, run: () => startRename(side) },
+    { id: "delete", label: "Delete", shortcut: "F8", enabled: targets.length > 0, run: () => startDelete(side) },
+  );
+  return items;
+}
+
+export function buildMenuItems(side: Side, kind: MenuKind): MenuItem[] {
+  const newFolder: MenuItem = {
+    id: "new-folder",
+    label: "New folder",
+    shortcut: "F7",
+    enabled: panelLocation(browse()[side]) !== null,
+    run: () => startNewFolder(side),
+  };
+  return kind === "empty" ? [newFolder] : [...rowItems(side), newFolder];
+}

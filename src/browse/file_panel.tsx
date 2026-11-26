@@ -3,7 +3,8 @@ import { DiskIcon, ServerIcon } from "../icons";
 import { EntryIcon } from "../icons";
 import { useBrowseStore, type PanelSource, type Side } from "./browse_store";
 import { buildRows, formatDate, formatSize, splitName } from "./navigation";
-import { enterDir, goUp, loadMore, openSource } from "./panel_loader";
+import { goUp, loadMore, openRowAt, openSource } from "./panel_loader";
+import { openEmptyMenu, openMenuAtCursor, openRowMenu } from "./context_menu";
 
 const ROW_HEIGHT = 22;
 const OVERSCAN_ROWS = 8;
@@ -58,11 +59,13 @@ export function FilePanel({ side }: { side: Side }) {
     if (panel.nextToken && rows.length - panel.cursor < LOAD_MORE_DISTANCE_ROWS) void loadMore(side);
   });
 
-  function openRow(index: number) {
-    const row = rows[index];
-    if (!row) return;
-    if (row.isUp) void goUp(side);
-    else if (row.isDir) void enterDir(side, row.name);
+  const openRow = (index: number) => openRowAt(side, index);
+
+  /** Shift+F10 / ContextMenu key: open the menu just under the cursor row. */
+  function openMenuOnCursor() {
+    const rect = listRef.current?.getBoundingClientRect();
+    const top = rect ? rect.top + (panel.cursor + 1) * ROW_HEIGHT - (listRef.current?.scrollTop ?? 0) : 0;
+    openMenuAtCursor(side, (rect?.left ?? 0) + ROW_HEIGHT, top);
   }
 
   function onKeyDown(event: React.KeyboardEvent) {
@@ -87,7 +90,7 @@ export function FilePanel({ side }: { side: Side }) {
         document.getElementById(`panel-${other}`)?.focus();
       },
     };
-    const handler = handlers[event.key];
+    const handler = event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey) ? openMenuOnCursor : handlers[event.key];
     if (!handler) return;
     event.preventDefault();
     handler();
@@ -108,6 +111,7 @@ export function FilePanel({ side }: { side: Side }) {
       tabIndex={0}
       onKeyDown={onKeyDown}
       onMouseDown={() => setActive(side)}
+      onContextMenu={(event) => event.preventDefault()}
     >
       <div className="phead">
         <span className={`tag${panel.source?.kind === "local" ? " local" : ""}`}>
@@ -138,6 +142,10 @@ export function FilePanel({ side }: { side: Side }) {
       <div
         className="list"
         ref={listRef}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          openEmptyMenu(side, event.clientX, event.clientY);
+        }}
         onScroll={(event) => {
           setScrollTop(side, event.currentTarget.scrollTop);
         }}
@@ -157,6 +165,11 @@ export function FilePanel({ side }: { side: Side }) {
                   setCursor(side, index);
                 }}
                 onDoubleClick={() => openRow(index)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  openRowMenu(side, index, event.clientX, event.clientY);
+                }}
               >
                 <span className="name">
                   <EntryIcon isDir={!!row.isDir} isUp={!!row.isUp} ext={ext} />

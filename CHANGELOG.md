@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- Right-click context menu on panel rows and empty panel space (also Shift+F10 / ContextMenu key): Open, Upload/Download/Copy to other panel, Move to other panel, Rename, Delete, New folder, with shortcut hints. Handlers call the same flows as the F-keys. Vitest no longer scans `.claude/` worktrees.
 - Profile validation on add and edit. Rust (`profile_rules.rs`) is authoritative and returns per-field errors; the form mirrors the rules (`src/profile/validate_profile.ts`) for inline errors and a disabled Save while invalid. Rules: name required, max 64, unique case-insensitively; endpoint is an http(s) URL with a host, no user info, query, fragment or path, port 1..65535, normalized (trimmed, no trailing slash); access key without whitespace or control characters; secret required on create (blank on edit keeps the stored one), no control characters; region optional (default `us-east-1`), `[a-z0-9-]` up to 32.
 - A non-blocking warning for `http://` endpoints (keys travel unencrypted) and a "Test connection" button after a successful save. Saving never checks connectivity.
 - Shared test table `src/profile/validation_cases.json` used by both the Rust and the vitest tests.

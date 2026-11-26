@@ -1,0 +1,14 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Context menu (step 3c)</title></head><body>
+<h1>Right-click context menu (step 3c)</h1>
+<h2>Specs</h2><p>Right-click menu on rows and empty panel space: Open, Upload/Download/Copy, Move, Rename, Delete, New folder. Unmarked row selects only itself, marked row acts on all marks, empty space shows New folder only. Same flows as the F-keys, keyboard and a11y, tokens-only styling, no Rust changes.</p>
+<h2>Actions</h2><ul>
+<li>New <code>src/browse/context_menu.ts</code> (store, item list, selection rules, <code>clampMenuPosition</code>) and <code>context_menu_view.tsx</code> (role=menu surface).</li>
+<li><code>file_panel.tsx</code>: contextmenu handlers, Shift+F10 / ContextMenu key; <code>panel_loader.ts</code>: <code>openRowAt</code> shared by Enter and Open; <code>browser_screen.tsx</code> mounts the menu.</li>
+<li>Styles in <code>styles.css</code> (existing tokens only); <code>vite.config.ts</code> excludes <code>.claude/**</code> from tests.</li>
+<li>Tests: <code>context_menu.test.ts</code>, <code>context_menu.test.tsx</code>; full suite and build green.</li></ul>
+<h2>Tradeoffs</h2><ul>
+<li>Handlers take the right-clicked side explicitly instead of relying on the active panel; the flows already accepted a side.</li>
+<li>Items are snapshotted when the menu opens so they cannot change under the pointer.</li>
+<li>View, Edit and presigned URL are omitted until steps 5 and 3d; the item list makes them a one-entry addition.</li>
+<li>Verified in jsdom and Chromium with a mocked Tauri bridge; not in a real WebKit window.</li></ul>
+</body></html>

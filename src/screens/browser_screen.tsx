@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { LockIcon, ServerIcon } from "../icons";
+import { ContextMenu } from "../browse/context_menu_view";
 import { FilePanel } from "../browse/file_panel";
 import { listBuckets, listProfiles, type Profile } from "../browse/browse_api";
 import { useBrowseStore } from "../browse/browse_store";
@@ -113,6 +114,7 @@ export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: 
         ))}
       </div>
       <div className="muted hint">Keys: Tab switches panel, Up/Down/PageUp/PageDown/Home/End move, Enter opens, Backspace goes up, Space marks, F2 renames, F5 copies, F6 moves, F7 creates a folder, F8 deletes.</div>
+      <ContextMenu />
       <OpsDialogs />
     </div>
   );

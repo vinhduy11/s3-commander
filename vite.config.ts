@@ -8,6 +8,9 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(() => ({
   plugins: [react()],
 
+  // A worktree under .claude/worktrees must not make `npm test` scan the other checkouts.
+  test: { exclude: ["**/node_modules/**", "**/dist/**", ".claude/**"] },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

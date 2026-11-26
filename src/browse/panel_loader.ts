@@ -3,7 +3,7 @@
 
 import { listBucketDir, listLocalDir } from "./browse_api";
 import { useBrowseStore, type PanelSource, type Side } from "./browse_store";
-import { childPath, parentOf } from "./navigation";
+import { buildRows, childPath, parentOf } from "./navigation";
 
 const requestCounter: Record<Side, number> = { left: 0, right: 0 };
 
@@ -76,4 +76,13 @@ export function goUp(side: Side): Promise<void> {
   const { source, path } = useBrowseStore.getState()[side];
   const parent = source ? parentOf(source, path) : null;
   return parent ? openPath(side, parent.path, parent.focusName) : Promise.resolve();
+}
+
+/** Enter (and the context menu's Open): ".." goes up, a folder is entered, a file does nothing yet. */
+export function openRowAt(side: Side, index: number): void {
+  const { source, path, entries } = useBrowseStore.getState()[side];
+  const row = buildRows(source, path, entries)[index];
+  if (!row) return;
+  if (row.isUp) void goUp(side);
+  else if (row.isDir) void enterDir(side, row.name);
 }

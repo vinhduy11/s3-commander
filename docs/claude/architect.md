@@ -28,6 +28,8 @@ Design from the project owner; the vault, browsing (step 2), its dual-pane UI an
 - Frontend state: `src/browse/browse_store.ts` (Zustand) holds `left`/`right` panel slices (source, path, entries, nextToken, cursor, marked, scrollTop), `active`, `profileId`, `buckets`. `setProfile` (on change) and `lock` reset only bucket panels; Local keeps its state. No secrets in the store. `panel_loader.ts` loads listings and drops responses that arrive after the panel moved on.
 - The S3 pagination loads the next page when the cursor nears the end of the loaded rows.
 
+- Context menu (step 3c): `context_menu.ts` (state, item list, selection rules) and `context_menu_view.tsx` (surface); handlers reuse `ops_flow` and `openRowAt` in `panel_loader.ts`.
+
 ## File operations (implemented, roadmap step 3a)
 
 - **Planner** `src-tauri/src/transfer_plan.rs` (pure, no Tauri/SDK/fs): `Location` (local dir or bucket + prefix), `TransferRequest {source, dest, items, mode}`, `Found` entries under the selected items, `build_plan` maps names and keys for the four directions (upload, download, server copy, local copy), `check_destination` refuses same-place copies and a folder into itself, `find_conflicts`, `apply_resolutions(plan, existing, Resolutions{per_item, default})`, `auto_rename` ("name (1).ext"), `summarize`, `delete_batches` (1000). A conflict with no per-item decision and no default is an error, so nothing runs before every conflict is resolved. Directories merge and never conflict; conflicts are per file.

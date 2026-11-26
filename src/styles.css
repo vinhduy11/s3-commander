@@ -148,3 +148,13 @@ button.danger-fill { background: var(--danger); border-color: var(--danger); col
 button.danger-fill:hover:not(:disabled) { background: var(--danger); border-color: var(--danger); }
 .busy-line { display: flex; align-items: center; gap: var(--sp-2); }
 .spinner { width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+
+/* ---- right-click context menu ---- */
+.ctx-menu { position: fixed; z-index: 20; min-width: 220px; display: flex; flex-direction: column; gap: 1px; padding: var(--sp-1); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-modal); text-align: left; outline: none; }
+.ctx-item { justify-content: space-between; gap: var(--sp-4); width: 100%; min-height: 26px; padding: 3px var(--sp-2); border: 0; border-radius: var(--radius); background: transparent; font-weight: 400; font-size: var(--text-md); text-align: left; }
+.ctx-item:hover:not([aria-disabled="true"]), .ctx-item:focus-visible:not([aria-disabled="true"]) { background: var(--accent-soft); border: 0; outline: none; }
+.ctx-item[aria-disabled="true"] { color: var(--muted); opacity: 0.55; cursor: not-allowed; }
+.ctx-item[data-id="delete"]:not([aria-disabled="true"]) { color: var(--danger); }
+.ctx-item[data-id="new-folder"] { margin-top: var(--sp-1); border-top: 1px solid var(--line-soft); border-radius: 0 0 var(--radius) var(--radius); padding-top: 5px; }
+.ctx-menu .ctx-item[data-id="new-folder"]:only-child { margin-top: 0; border-top: 0; border-radius: var(--radius); padding-top: 3px; }
+.ctx-key { font: 600 var(--text-xs) var(--font-mono); color: var(--muted); }
