@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Profiles with master-key vault</title></head>
+<body>
+<h1>Profiles with master-key vault (step 1)</h1>
+<h2>Specs</h2>
+<p>Multi-profile support (id, name, MinIO endpoint, access key, secret key, region default us-east-1) stored in an encrypted vault unlocked by a master key. Commands: vault_status, vault_create, vault_unlock, vault_lock, profile_list, profile_save, profile_delete. Profile commands fail when locked; the key never leaves Rust; profile_list omits the secret key. No S3 calls yet.</p>
+<h2>Actions</h2>
+<ul>
+<li>Added <code>src-tauri/src/vault.rs</code> (Argon2id + XChaCha20-Poly1305, random salt and per-save nonce, atomic file replace, zeroized key) with 10 unit tests written first (red, then green).</li>
+<li>Added thin Tauri commands and managed <code>Mutex&lt;Vault&gt;</code> in <code>lib.rs</code>; removed the template <code>greet</code> command.</li>
+<li>Replaced <code>App.tsx</code> with a master-key screen and a profile list/form with Lock.</li>
+<li>Deps: argon2, chacha20poly1305, rand, zeroize, base64, thiserror, tempfile (dev). Updated README, CHANGELOG, architect and safety docs.</li>
+</ul>
+<h2>Tradeoffs</h2>
+<ul>
+<li>Own vault file instead of the OS keychain: no extra service and identical behaviour on all platforms, but the user must remember the master key (no recovery).</li>
+<li>Whole list encrypted as one blob: simple and one auth tag; every save re-encrypts everything, fine for a handful of profiles.</li>
+<li>Argon2 default parameters (19 MiB, 2 passes): reasonable for a desktop app; not tuned or measured for slow machines.</li>
+<li>Master key crosses the IPC boundary as a string per call; it is not stored, but the string in the webview/Rust heap is not zeroized (inferred limitation).</li>
+<li>No auto-lock timer or brute-force throttling yet (YAGNI for step 1).</li>
+</ul>
+</body></html>
