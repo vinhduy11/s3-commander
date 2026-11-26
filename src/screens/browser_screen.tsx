@@ -15,13 +15,15 @@ import { useOpsStore } from "../ops/ops_store";
 import { presignSelection } from "../ops/ops_targets";
 import { startPresign } from "../ops/presign_flow";
 import { ToastView } from "../ops/toast";
+import { startViewer } from "../viewer/viewer_flow";
+import { ViewerHost } from "../viewer/viewer_host";
+import { useViewerStore } from "../viewer/viewer_store";
 
-// F3 View and F4 Edit stay disabled until step 5.
 const PRESIGN_KEY = "F9";
 const FUNCTION_KEYS: { key: string; label: string; action?: () => void }[] = [
   { key: "F2", label: "Rename", action: () => startRename() },
-  { key: "F3", label: "View" },
-  { key: "F4", label: "Edit" },
+  { key: "F3", label: "View", action: () => void startViewer("view") },
+  { key: "F4", label: "Edit", action: () => void startViewer("edit") },
   { key: "F5", label: "Copy", action: () => void startTransfer("copy") },
   { key: "F6", label: "Move", action: () => void startTransfer("move") },
   { key: "F7", label: "New folder", action: () => startNewFolder() },
@@ -82,10 +84,13 @@ export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: 
     return () => void unlisten.then((stop) => stop());
   }, []);
 
+  // Leaving this screen (Lock) drops any open file text.
+  useEffect(() => () => useViewerStore.setState({ session: null }), []);
+
   // Function keys act on the active panel; open dialogs handle their own keys.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (useOpsStore.getState().dialog) return;
+      if (useOpsStore.getState().dialog || useViewerStore.getState().session) return;
       const entry = FUNCTION_KEYS.find((candidate) => candidate.action && candidate.key === event.key);
       if (!entry?.action) return;
       event.preventDefault();
@@ -127,17 +132,18 @@ export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: 
             type="button"
             disabled={!action || (key === PRESIGN_KEY && !canPresign)}
             title={!action ? "Not available yet" : key === PRESIGN_KEY && !canPresign ? "Select files on a server panel" : undefined}
-            onClick={() => !useOpsStore.getState().dialog && action?.()}
+            onClick={() => !useOpsStore.getState().dialog && !useViewerStore.getState().session && action?.()}
           >
             <span className="fk">{key}</span>{label}
           </button>
         ))}
       </div>
-      <div className="muted hint">Keys: Tab switches panel, Up/Down/PageUp/PageDown/Home/End move, Enter opens, Backspace goes up, Space marks, F2 renames, F5 copies, F6 moves, F7 creates a folder, F8 deletes, F9 presigns a URL.</div>
+      <div className="muted hint">Keys: Tab switches panel, Up/Down/PageUp/PageDown/Home/End move, Enter opens, Backspace goes up, Space marks, F2 renames, F3 views, F4 edits, F5 copies, F6 moves, F7 creates a folder, F8 deletes, F9 presigns a URL.</div>
       <ContextMenu />
       <DragLayer />
       <ToastView />
       <OpsDialogs />
+      <ViewerHost />
     </div>
   );
 }

@@ -10,6 +10,7 @@ vi.mock("../ops/ops_flow", () => ({
   startNewFolder: vi.fn(),
 }));
 vi.mock("./panel_loader", () => ({ openRowAt: vi.fn() }));
+vi.mock("../viewer/viewer_flow", () => ({ startViewer: vi.fn() }));
 import * as flow from "../ops/ops_flow";
 import { openRowAt } from "./panel_loader";
 import { startPresign as flow_presign } from "../ops/presign_flow";
@@ -95,8 +96,8 @@ describe("item set and state", () => {
   it("file row: no Open, all actions enabled, shortcut hints, New folder last", () => {
     openRowMenu("left", 2, 0, 0);
     const items = buildMenuItems("left", "row");
-    expect(ids(items)).toEqual(["copy", "move", "rename", "delete", "new-folder"]);
-    expect(items.map((item) => item.shortcut)).toEqual(["F5", "F6", "F2", "F8", "F7"]);
+    expect(ids(items)).toEqual(["view", "edit", "copy", "move", "rename", "delete", "new-folder"]);
+    expect(items.map((item) => item.shortcut)).toEqual(["F3", "F4", "F5", "F6", "F2", "F8", "F7"]);
     expect(items.every((item) => item.enabled)).toBe(true);
   });
 

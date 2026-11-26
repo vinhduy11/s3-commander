@@ -16,6 +16,7 @@ export const KeyIcon = ({ size = 28 }: { size?: number }) => <Svg size={size}><c
 export const ChevronIcon = ({ open }: { open: boolean }) => <Svg><path d={open ? "M3.5 6 8 10.5 12.5 6" : "M6 3.5 10.5 8 6 12.5"} /></Svg>;
 export const ServerIcon = () => <Svg><rect x="2" y="2.5" width="12" height="4.5" rx="1" /><rect x="2" y="9" width="12" height="4.5" rx="1" /><path d="M4.6 4.8h.01M4.6 11.3h.01" /></Svg>;
 export const DiskIcon = () => <Svg><rect x="2" y="3" width="12" height="9" rx="1.5" /><path d="M5 14.5h6M8 12v2.5" /></Svg>;
+export const CloseIcon = () => <Svg><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" /></Svg>;
 export const UsersIcon = () => <Svg><circle cx="8" cy="5.5" r="2.5" /><path d="M3 13.5c.4-2.6 2.5-4 5-4s4.6 1.4 5 4" /></Svg>;
 
 type Kind = "image" | "archive" | "code" | "media" | "doc" | "file";

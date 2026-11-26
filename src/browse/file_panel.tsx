@@ -9,6 +9,7 @@ import { openEmptyMenu, openMenuAtCursor, openRowMenu } from "./context_menu";
 import { panelDragProps, useDropHighlight } from "./drag_drop";
 import { ColumnResizer } from "./column_resizer";
 import { fitWidths, type ColumnKey } from "./panel_columns";
+import { startViewer } from "../viewer/viewer_flow";
 
 const ROW_HEIGHT = 22;
 const OVERSCAN_ROWS = 8;
@@ -86,7 +87,8 @@ export function FilePanel({ side }: { side: Side }) {
     if (panel.nextToken && rows.length - panel.cursor < LOAD_MORE_DISTANCE_ROWS) void loadMore(side);
   });
 
-  const openRow = (index: number) => openRowAt(side, index);
+  /** Enter and double-click: a file opens in the viewer, a folder or ".." navigates. */
+  const openRow = (index: number) => (rows[index] && !rows[index].isDir ? void startViewer("view", side) : openRowAt(side, index));
 
   /** Shift+F10 / ContextMenu key: open the menu just under the cursor row. */
   function openMenuOnCursor() {

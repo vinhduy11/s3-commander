@@ -1,11 +1,13 @@
 // Right-click context menu: state, the item list and the selection rules. Pure of React so it is
 // testable on its own. Every item's handler calls the same flow the F-key calls (ops_flow), so
-// there is one implementation of each operation. To add an action later (View, Edit) append one entry in `rowItems`; nothing else changes.
+// there is one implementation of each operation. To add an action later append one entry in `rowItems`; nothing else changes.
 
 import { create } from "zustand";
 import { startDelete, startNewFolder, startRename, startTransfer } from "../ops/ops_flow";
 import { useOpsStore } from "../ops/ops_store";
 import { startPresign } from "../ops/presign_flow";
+import { startViewer } from "../viewer/viewer_flow";
+import { useViewerStore } from "../viewer/viewer_store";
 import { cursorTarget, panelLocation, presignSelection, selectTargets } from "../ops/ops_targets";
 import { useBrowseStore, type Side } from "./browse_store";
 import { buildRows } from "./navigation";
@@ -34,7 +36,7 @@ export function clampMenuPosition(
 }
 
 const browse = () => useBrowseStore.getState();
-const dialogOpen = () => useOpsStore.getState().dialog !== null;
+const dialogOpen = () => useOpsStore.getState().dialog !== null || useViewerStore.getState().session !== null;
 
 function activate(side: Side) {
   browse().setActive(side);
@@ -85,7 +87,10 @@ function rowItems(side: Side): MenuItem[] {
   if (row?.isDir && targets.length <= 1) {
     items.push({ id: "open", label: "Open", shortcut: "Enter", enabled: true, run: () => openRowAt(side, panel.cursor) });
   }
+  const oneFile = !!row && !row.isDir && !row.isUp && targets.length === 1;
   items.push(
+    { id: "view", label: "View", shortcut: "F3", enabled: oneFile, run: () => void startViewer("view", side) },
+    { id: "edit", label: "Edit", shortcut: "F4", enabled: oneFile, run: () => void startViewer("edit", side) },
     { id: "copy", label: `${transferVerb(side)} to other panel`, shortcut: "F5", enabled: canTransfer, run: () => void startTransfer("copy", side) },
     { id: "move", label: "Move to other panel", shortcut: "F6", enabled: canTransfer, run: () => void startTransfer("move", side) },
     ...(panel.source?.kind === "bucket"

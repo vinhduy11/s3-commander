@@ -37,7 +37,7 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 │   │   ├── master_key_screen.tsx  # create / unlock the vault
 │   │   ├── profiles_screen.tsx    # add, edit, delete, test, duplicate profiles; shows Rust's per-field save errors
 │   │   ├── profile_form.tsx       # profile form: inline per-field errors, Save disabled while invalid, http warning, collapsible Transfer settings, Import from AWS CLI
-│   │   └── browser_screen.tsx     # top bar (profile switcher, Lock), two panels, F-key bar (F2, F5-F9), operation dialogs
+│   │   └── browser_screen.tsx     # top bar (profile switcher, Lock), two panels, F-key bar (F2 to F9), operation dialogs and the viewer
 │   ├── profile/
 │   │   ├── validate_profile.ts    # profile rules (mirror of profile_rules.rs) for instant feedback
 │   │   ├── aws_import_api.ts      # typed wrappers over aws_config_list_profiles / aws_config_read_profile
@@ -69,6 +69,18 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 │   │   ├── queue_panel.tsx        # the panel docked above the F-key bar: collapsed status line, rows, Cancel / Retry / Dismiss, failures
 │   │   ├── queue_fixtures.ts      # test fixture (job snapshot)
 │   │   └── *.test.ts(x)           # vitest tests
+│   ├── viewer/                    # View (F3) and Edit (F4) for text, JSON and CSV (step 5)
+│   │   ├── viewer_api.ts          # typed wrappers over the text commands (local and server open and save)
+│   │   ├── viewer_store.ts        # Zustand store: the one open viewer session (text, saved text, source, guard)
+│   │   ├── viewer_flow.ts         # open (F3, F4, Enter, menu), dirty guard, saves with changed-on-disk / changed-remotely handling, Save as copy
+│   │   ├── viewer_host.tsx        # mounts the viewer and loads its chunk lazily (React.lazy)
+│   │   ├── viewer_modal.tsx       # the large in-window modal: toolbar, JSON tools, CSV toggle, the nested dialogs (lazy chunk)
+│   │   ├── code_editor.tsx        # CodeMirror 6 wrapper, theme from the CSS tokens (lazy chunk)
+│   │   ├── csv_table.tsx          # virtualised CSV grid with in-place cell edit (lazy chunk)
+│   │   ├── csv.ts                 # pure: RFC 4180 parse and serialize that keeps untouched cells byte-identical, delimiter detection, row and column edits
+│   │   ├── json_tools.ts          # pure: validate with line and column, Format and Minify on the token text
+│   │   ├── text_kind.ts           # pure: file kind by extension, line ending detection, copy name, size cap
+│   │   └── *.test.ts(x)           # vitest tests (backend mocked, CodeMirror stubbed in the modal tests)
 │   └── ops/                       # file operations (step 3a)
 │       ├── ops_api.ts             # typed wrappers over the operation commands and their DTO types
 │       ├── ops_targets.ts         # pure: marked-or-cursor targets, panel location, destination = other panel
@@ -102,6 +114,8 @@ npm test               # vitest: panel store, navigation helpers, operation targ
         ├── transfer_run.rs   # operation engine: expand, probe, resolve (prepare_plan), copy_item (move = copy + verify), one-shot run_transfer (rename); delete, new folder, rename
         ├── transfer_job.rs   # pure job / item state machine (queued, running, done, failed, cancelling, cancelled), snapshots, progress events, job titles
         ├── transfer_queue.rs # background job runner: 3 jobs at once, sequential items, EventSink, throttled progress, kept uploads for Retry, Cancel / Dismiss / Lock abort them
+        ├── text_doc.rs   # viewer text commands, local: UTF-8 / BOM / NUL detection, 5 MiB cap, atomic save keeping permissions, changed-on-disk stamp; no Tauri dependency
+        ├── text_s3.rs    # viewer text commands, server: open (ETag, Content-Type, metadata), save with If-Match plus HEAD check, create-only for Save as copy
         ├── s3_ops.rs     # object ops: list all, head, empty put, CopyObject / UploadPartCopy, DeleteObjects in batches
         ├── part_plan.rs  # pure plan_parts(size, chunksize): part size raised to 5 MiB / 10,000 parts, 5 GiB part and 5 TiB object limits
         ├── transfer_control.rs # ProgressSink (+ no-op), CancelToken, RetryPolicy, EngineError, run_bounded, TransferEnv (settings + sink + token + retry)

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>View and Edit: text, CSV, JSON</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:860px;margin:32px auto;padding:0 16px;color:#1b1d24}h2{border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:28px}code{background:#f2f3f6;padding:1px 4px;border-radius:3px}</style></head><body>
+<h1>View and Edit (F3 / F4): text, CSV, JSON</h1>
+<h2>Specs</h2>
+<ul>
+<li>Owner request: open and edit text, CSV and JSON files. Roadmap step 5: F3 View (read-only), F4 Edit, Enter on a file and View / Edit in the right-click menu, for LOCAL and SERVER files.</li>
+<li>UTF-8 only; BOM, line endings and trailing newline preserved (untouched file saves byte-identical); 5 MiB cap; non-text or non-UTF-8 shows a message.</li>
+<li>CodeMirror 6 (approved), offline, lazy chunk; line numbers, undo, search, wrap, Cmd/Ctrl+S, unsaved-changes guard, light and dark from the tokens.</li>
+<li>JSON: highlighting, validity with line and column, Format, Minify, saving invalid JSON after a warning. CSV: Text | Table, delimiter detection and override, RFC 4180, header toggle, virtualised grid with in-place edits synced with the text.</li>
+<li>Saves: local atomic with a changed-on-disk check; server PutObject with the original Content-Type and metadata, <code>If-Match</code> or a HEAD comparison; conflicts offer Overwrite, Save as copy or Cancel; panels refresh.</li>
+</ul>
+<h2>Actions</h2>
+<ul>
+<li>Rust: <code>text_doc.rs</code> (decode, encode, local open and atomic save, stamp), <code>text_s3.rs</code> (open, save), 4 commands in <code>lib.rs</code>. 21 new Rust tests (detection incl. BOM, NUL, invalid bytes, empty; byte-identical round trip for CRLF, LF, no trailing newline, BOM; permissions kept; no temp file left; changed-on-disk by size, by modified time and by deletion; size cap; mocked S3 open, save body, Content-Type, metadata, If-Match, mismatch, PreconditionFailed, NotImplemented fallback, create-only; error text without secret).</li>
+<li>Frontend <code>src/viewer/</code>: <code>csv.ts</code>, <code>json_tools.ts</code>, <code>text_kind.ts</code>, <code>viewer_api/store/flow</code>, <code>viewer_host/modal</code>, <code>code_editor</code>, <code>csv_table</code>. Small edits to <code>file_panel.tsx</code> (Enter, double-click), <code>context_menu.ts</code> (two items), <code>browser_screen.tsx</code> (F3, F4, key guard, host), <code>icons.tsx</code> (close icon), <code>styles.css</code> (appended block), two existing context-menu tests updated for the new first items.</li>
+<li>Vitest: 458 tests pass (new): CSV round trip and edits, delimiter detection, JSON positions and Format, flows (open, dirty guard, saves, conflicts, save as copy, invalid JSON), modal UI with a stubbed editor, CodeMirror in jsdom (CRLF round trip, read-only, wrap, reveal), entry points (Enter, double-click, menu, F3, F4, keys blocked while open).</li>
+<li>Docs: README structure, CHANGELOG, architect, safety, rule.</li>
+</ul>
+<h2>Measured</h2>
+<ul>
+<li><code>cargo test</code> 222 passed, <code>cargo check</code> clean; <code>npm test</code> 458 passed; <code>npm run build</code> ok.</li>
+<li>Main bundle 300.8 kB before (the existing <code>dist</code>) to 315.6 kB after (+14.9 kB: flow, store, CSV and JSON modules, entry-point code); CodeMirror, the modal and the grid are a separate 357 kB chunk loaded on first open.</li>
+<li>Chromium mock screenshots (in-page mock of the Tauri commands, fake data) in light and dark: text viewer, JSON error, JSON formatted, CSV text, CSV table, unsaved guard, changed-on-disk and changed-on-server dialogs. Cmd+S worked in Chromium.</li>
+<li>Bug caught by a test: <code>doc.toString()</code> in CodeMirror always joins with LF, which would have turned CRLF files into LF on save; fixed with <code>state.sliceDoc()</code>.</li>
+</ul>
+<h2>Inferred, not exercised</h2>
+<ul>
+<li>Real MinIO and whether it honors <code>If-Match</code> on PutObject (mocked only; the HEAD comparison is the fallback).</li>
+<li>Real files and the real Tauri window, WebKit (the target webview) with CodeMirror and the grid, real keyboard use and IME input, 5 MiB documents (typing latency was not measured).</li>
+</ul>
+<h2>Tradeoffs</h2>
+<ul>
+<li>Save conflicts are a tagged result (<code>changed</code>), not an error string: the UI branches without parsing text.</li>
+<li>One GetObject at open (not HEAD then GET): it gives length, ETag, Content-Type and metadata together; the length is checked before the body is read.</li>
+<li>HEAD check plus <code>If-Match</code>: works on servers that ignore the header, and closes the race where it is supported. A small window remains without support. Local check-then-rename has the same small window.</li>
+<li>Own JSON tokenizer instead of <code>JSON.parse</code>: positions in WebKit, and Format that does not change number literals or key order, at the cost of about 150 lines.</li>
+<li>CSV model keeps per-cell source text: edits touch only edited cells, at the cost of holding the raw strings next to the values.</li>
+<li>Table renders every column of visible rows (rows are windowed): simple, fine to a few hundred columns.</li>
+<li>Editor text is mirrored into the store on each change (<code>sliceDoc</code> of the document): simple, may cost latency near 5 MiB (unmeasured); debounce if it shows.</li>
+<li>CodeMirror packages added individually rather than the bundled <code>codemirror</code> package; main bundle grows by 14.9 kB because the flow and pure modules are not lazy.</li>
+<li>Save as copy continues on the copy (like an editor's Save As); Add/Delete row and column buttons were added to the table for structural edits.</li>
+</ul>
+</body></html>

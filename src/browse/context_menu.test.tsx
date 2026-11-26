@@ -7,7 +7,9 @@ import { useOpsStore } from "../ops/ops_store";
 
 vi.mock("../ops/ops_flow", () => ({ startTransfer: vi.fn(), startDelete: vi.fn(), startRename: vi.fn(), startNewFolder: vi.fn() }));
 vi.mock("./panel_loader", () => ({ openRowAt: vi.fn(), openPath: vi.fn(), openSource: vi.fn(), enterDir: vi.fn(), goUp: vi.fn(), loadMore: vi.fn() }));
+vi.mock("../viewer/viewer_flow", () => ({ startViewer: vi.fn() }));
 import * as flow from "../ops/ops_flow";
+import { startViewer } from "../viewer/viewer_flow";
 import { closeMenu, openRowMenu, useContextMenu } from "./context_menu";
 import { ContextMenu } from "./context_menu_view";
 import { FilePanel } from "./file_panel";
@@ -69,8 +71,9 @@ describe("context menu view", () => {
   it("Enter activates the focused item, closes the menu and runs the flow", () => {
     act(() => openRowMenu("left", 1, 20, 20));
     const menu = document.querySelector('[role="menu"]')!;
-    key(menu, { key: "Enter" }); // first item = Upload to other panel
-    expect(flow.startTransfer).toHaveBeenCalledWith("copy", "left");
+    key(menu, { key: "Enter" }); // first item = View
+    expect(startViewer).toHaveBeenCalledWith("view", "left");
+    expect(flow.startTransfer).not.toHaveBeenCalled();
     expect(useContextMenu.getState().menu).toBeNull();
   });
 
