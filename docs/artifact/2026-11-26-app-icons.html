@@ -1,0 +1,143 @@
+<title>S3 Commander Icons</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root {
+  --bg: #f2f3f6; --surface: #ffffff; --fg: #1b1e2e; --muted: #5f6578; --line: #dfe2ea; --accent: #4450d6; --accent-fg: #ffffff;
+  --dock-light: #e6e8ef; --dock-dark: #20232e;
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #14161d; --surface: #1c1f29; --fg: #e8eaf2; --muted: #9aa0b4; --line: #2c3040; --accent: #7f89ff; --accent-fg: #10121a;
+  --dock-light: #cfd3df; --dock-dark: #0d0f15; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #14161d; --surface: #1c1f29; --fg: #e8eaf2; --muted: #9aa0b4; --line: #2c3040; --accent: #7f89ff; --accent-fg: #10121a;
+  --dock-light: #cfd3df; --dock-dark: #0d0f15; color-scheme: dark; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.5;
+  padding-block: 32px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+main { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+h1 { margin: 0; font-size: 28px; letter-spacing: -0.01em; text-wrap: balance; }
+.lede { margin: 6px 0 0; color: var(--muted); max-width: 62ch; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.card header { display: flex; align-items: center; gap: 10px; }
+.card h2 { margin: 0; font-size: 17px; }
+.badge { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: var(--accent); color: var(--accent-fg); font-weight: 700; font-size: 14px; }
+.hero { display: grid; place-items: center; padding: 6px 0; }
+.hero svg { max-width: 100%; height: auto; }
+.note { margin: 0; color: var(--muted); font-size: 14px; min-height: 3em; }
+.sizes { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
+.sz { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; }
+.sz small { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.docks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dock { border-radius: 14px; padding: 10px; display: grid; place-items: center; }
+.dock.light { background: var(--dock-light); } .dock.dark { background: var(--dock-dark); }
+.how { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; color: var(--muted); }
+.how b { color: var(--fg); }
+</style>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="ic-a" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="a-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6670ee"/><stop offset="1" stop-color="#2f3ab8"/></linearGradient>
+    <linearGradient id="a-pane" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e4e7fb"/></linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="190" fill="url(#a-bg)"/>
+  <rect x="196" y="240" width="292" height="544" rx="44" fill="url(#a-pane)"/>
+  <rect x="536" y="240" width="292" height="544" rx="44" fill="url(#a-pane)" opacity="0.92"/>
+  <g fill="#4450d6">
+    <rect x="232" y="290" width="220" height="30" rx="15"/>
+    <rect x="232" y="358" width="170" height="30" rx="15" opacity="0.55"/>
+    <rect x="232" y="426" width="200" height="30" rx="15" opacity="0.55"/>
+    <rect x="232" y="494" width="150" height="30" rx="15" opacity="0.55"/>
+    <rect x="232" y="562" width="190" height="30" rx="15" opacity="0.55"/>
+    <rect x="572" y="290" width="220" height="30" rx="15"/>
+    <rect x="572" y="358" width="190" height="30" rx="15" opacity="0.55"/>
+    <rect x="572" y="426" width="160" height="30" rx="15" opacity="0.55"/>
+    <rect x="572" y="494" width="205" height="30" rx="15" opacity="0.55"/>
+    <rect x="572" y="562" width="140" height="30" rx="15" opacity="0.55"/>
+  </g>
+  <circle cx="512" cy="684" r="76" fill="#ffd45e"/>
+  <path d="M470 684h84m-30-34 34 34-34 34" fill="none" stroke="#2f3ab8" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+</symbol><symbol id="ic-b" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="b-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b4ad0"/><stop offset="1" stop-color="#1d2480"/></linearGradient>
+    <linearGradient id="b-body" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#dfe3ff"/><stop offset="0.5" stop-color="#ffffff"/><stop offset="1" stop-color="#cdd3fb"/></linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="190" fill="url(#b-bg)"/>
+  <path d="M268 376h488l-52 350c-6 44-62 80-192 80s-186-36-192-80z" fill="url(#b-body)"/>
+  <ellipse cx="512" cy="376" rx="244" ry="76" fill="#ffffff"/>
+  <ellipse cx="512" cy="376" rx="196" ry="46" fill="#4450d6"/>
+  <g fill="none" stroke="#ffd45e" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M402 600V470m-52 52 52-52 52 52"/>
+    <path d="M622 470v130m-52-52 52 52 52-52"/>
+  </g>
+</symbol><symbol id="ic-c" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="c-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#232842"/><stop offset="1" stop-color="#0e1122"/></linearGradient>
+    <linearGradient id="c-tab" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7f89ff"/><stop offset="1" stop-color="#4450d6"/></linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="190" fill="url(#c-bg)"/>
+  <path d="M212 332a52 52 0 0 1 52-52h150l56 60h290a52 52 0 0 1 52 52v36H212z" fill="url(#c-tab)"/>
+  <rect x="212" y="388" width="600" height="344" rx="52" fill="#4450d6"/>
+  <text x="512" y="660" text-anchor="middle" font-family="'SF Pro Rounded','Avenir Next','Helvetica Neue',Arial,sans-serif" font-size="270" font-weight="800" letter-spacing="-8" fill="#ffffff">S3</text>
+  <rect x="300" y="780" width="424" height="28" rx="14" fill="#7f89ff" opacity="0.5"/>
+</symbol><symbol id="ic-d" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="d-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#19b9a5"/><stop offset="1" stop-color="#0b6e8a"/></linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="190" fill="url(#d-bg)"/>
+  <path d="M190 360a40 40 0 0 1 40-40h120l44 48h192a40 40 0 0 1 40 40v176a40 40 0 0 1-40 40H230a40 40 0 0 1-40-40z" fill="#ffffff"/>
+  <path d="M470 560a40 40 0 0 1 40-40h120l44 48h112a40 40 0 0 1 40 40v146a40 40 0 0 1-40 40H510a40 40 0 0 1-40-40z" fill="#d4f7f1"/>
+  <g fill="none" stroke="#0b6e8a" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M380 740H300m36-34-36 34 36 34" transform="translate(-10 -270)"/>
+    <path d="M590 660h92m-34-34 34 34-34 34" transform="translate(-10 0)"/>
+  </g>
+  <circle cx="802" cy="342" r="84" fill="#ffd45e"/>
+  <path d="M780 350a22 22 0 0 1 4-43 30 30 0 0 1 58 8 18 18 0 0 1-2 35z" fill="#0b6e8a" transform="translate(811 338) scale(1.6) translate(-811 -338)"/>
+</symbol></defs></svg>
+<main>
+  <div>
+    <h1>S3 Commander icon options</h1>
+    <p class="lede">Four directions for the app icon, shown large, at the sizes macOS and Linux use, and on a light and a dark dock. All are drawn from scratch as vector art.</p>
+  </div>
+  <section class="grid" aria-label="Icon options">
+<article class="card" id="card-a">
+  <header><span class="badge">A</span><h2>Dual pane</h2></header>
+  <div class="hero"><svg viewBox="0 0 1024 1024" width="220" height="220" aria-hidden="true"><use href="#ic-a"/></svg></div>
+  <p class="note">The app's own layout: two file lists and a transfer arrow.</p>
+  <div class="sizes" role="group" aria-label="Sizes"><span class="sz"><svg viewBox="0 0 1024 1024" width="96" height="96" aria-hidden="true"><use href="#ic-a"/></svg><small>96</small></span><span class="sz"><svg viewBox="0 0 1024 1024" width="48" height="48" aria-hidden="true"><use href="#ic-a"/></svg><small>48</small></span><span class="sz"><svg viewBox="0 0 1024 1024" width="32" height="32" aria-hidden="true"><use href="#ic-a"/></svg><small>32</small></span><span class="sz"><svg viewBox="0 0 1024 1024" width="16" height="16" aria-hidden="true"><use href="#ic-a"/></svg><small>16</small></span></div>
+  <div class="docks">
+    <div class="dock light"><svg viewBox="0 0 1024 1024" width="52" height="52" aria-hidden="true"><use href="#ic-a"/></svg></div>
+    <div class="dock dark"><svg viewBox="0 0 1024 1024" width="52" height="52" aria-hidden="true"><use href="#ic-a"/></svg></div>
+  </div>
+</article>
+<article class="card" id="card-b">
+  <header><span class="badge">B</span><h2>Bucket</h2></header>
+  <div class="hero"><svg viewBox="0 0 1024 1024" width="220" height="220" aria-hidden="true"><use href="#ic-b"/></svg></div>
+  <p class="note">A neutral bucket with up and down arrows: storage plus transfer.</p>
+  <div class="sizes" role="group" aria-label="Sizes"><span class="sz"><svg viewBox="0 0 1024 1024" width="96" height="96" aria-hidden="true"><use href="#ic-b"/></svg><small>96</small></span><span class="sz"><svg viewBox="0 0 1024 1024" width="48" height="48" aria-hidden="true"><use href="#ic-b"/></svg><small>48</small></span><span class="sz"><svg viewBox="0 0 1024 1024" width="32" height="32" aria-hidden="true"><use href="#ic-b"/></svg><small>32</small></span><span class="sz"><svg viewBox="0 0 1024 1024" width="16" height="16" aria-hidden="true"><use href="#ic-b"/></svg><small>16</small></span></div>
+  <div class="docks">
+    <div class="dock light"><svg viewBox="0 0 1024 1024" width="52" height="52" aria-hidden="true"><use href="#ic-b"/></svg></div>
+    <div class="dock dark"><svg viewBox="0 0 1024 1024" width="52" height="52" aria-hidden="true"><use href="#ic-b"/></svg></div>
+  </div>
+</article>
+<article class="card" id="card-c">
+  <header><span class="badge">C</span><h2>Folder monogram</h2></header>
+  <div class="hero"><svg viewBox="0 0 1024 1024" width="220" height="220" aria-hidden="true"><use href="#ic-c"/></svg></div>
+  <p class="note">A folder carrying the S3 name; the most literal and readable at small sizes.</p>
+  <div class="sizes" role="group" aria-label="Sizes"><span class="sz"><svg viewBox="0 0 1024 1024" width="96" height="96" aria-hidden="true"><use href="#ic-c"/></svg><small>96</small></span><span class="sz"><svg viewBox="0 0 1024 1024" width="48" height="48" aria-hidden="true"><use href="#ic-c"/></svg><small>48</small></span><span class="sz"><svg viewBox="0 0 1024 1024" width="32" height="32" aria-hidden="true"><use href="#ic-c"/></svg><small>32</small></span><span class="sz"><svg viewBox="0 0 1024 1024" width="16" height="16" aria-hidden="true"><use href="#ic-c"/></svg><small>16</small></span></div>
+  <div class="docks">
+    <div class="dock light"><svg viewBox="0 0 1024 1024" width="52" height="52" aria-hidden="true"><use href="#ic-c"/></svg></div>
+    <div class="dock dark"><svg viewBox="0 0 1024 1024" width="52" height="52" aria-hidden="true"><use href="#ic-c"/></svg></div>
+  </div>
+</article>
+<article class="card" id="card-d">
+  <header><span class="badge">D</span><h2>Folder exchange</h2></header>
+  <div class="hero"><svg viewBox="0 0 1024 1024" width="220" height="220" aria-hidden="true"><use href="#ic-d"/></svg></div>
+  <p class="note">Local folder and server folder swapping files, with a cloud badge; teal palette.</p>
+  <div class="sizes" role="group" aria-label="Sizes"><span class="sz"><svg viewBox="0 0 1024 1024" width="96" height="96" aria-hidden="true"><use href="#ic-d"/></svg><small>96</small></span><span class="sz"><svg viewBox="0 0 1024 1024" width="48" height="48" aria-hidden="true"><use href="#ic-d"/></svg><small>48</small></span><span class="sz"><svg viewBox="0 0 1024 1024" width="32" height="32" aria-hidden="true"><use href="#ic-d"/></svg><small>32</small></span><span class="sz"><svg viewBox="0 0 1024 1024" width="16" height="16" aria-hidden="true"><use href="#ic-d"/></svg><small>16</small></span></div>
+  <div class="docks">
+    <div class="dock light"><svg viewBox="0 0 1024 1024" width="52" height="52" aria-hidden="true"><use href="#ic-d"/></svg></div>
+    <div class="dock dark"><svg viewBox="0 0 1024 1024" width="52" height="52" aria-hidden="true"><use href="#ic-d"/></svg></div>
+  </div>
+</article></section>
+  <p class="how"><b>How to choose:</b> reply with a letter (A, B, C or D), or say what to change (colors, the symbol, the shape). The chosen icon is exported to every size the app bundle needs and applied to the build.</p>
+</main>

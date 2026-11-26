@@ -23,7 +23,7 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 ├── docs/claude/          # topic reference files (architect, rule, safety, commands)
 ├── docs/changelog/       # dated implementation reports
 ├── docs/implement/       # implementation plans (roadmap for the S3 steps)
-├── docs/artifact/        # offline copy of published artifacts (UI demo)
+├── docs/artifact/        # offline copy of published artifacts (UI demo, app icon options)
 ├── index.html            # Vite entry
 ├── package.json          # frontend deps and npm scripts
 ├── vite.config.ts        # Vite config
@@ -100,7 +100,8 @@ npm test               # vitest: panel store, navigation helpers, operation targ
     ├── Cargo.toml        # Rust deps
     ├── tauri.conf.json   # Tauri app config
     ├── capabilities/     # Tauri permission sets
-    ├── icons/            # app icons
+    ├── icon-source/      # app-icon.svg: the vector source of the app icon (bucket with transfer arrows)
+    ├── icons/            # app icons generated from icon-source/app-icon.svg with `npx tauri icon src-tauri/icon-source/app-icon.svg` (desktop files only; mobile folders removed)
     └── src/
         ├── main.rs       # binary entry
         ├── settings.rs   # app settings file (settings.json: auto-lock minutes): defaults, validation, atomic save; no Tauri dependency
