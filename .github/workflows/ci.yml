@@ -1,0 +1,67 @@
+# Tests and builds on every push to main and on pull requests. NOT run on GitHub yet (written
+# locally; see docs/claude/deployment.md). No secrets are used here.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  versions:
+    name: Versions match
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: package.json, Cargo.toml and tauri.conf.json carry the same version
+        run: |
+          package_version=$(jq -r .version package.json)
+          config_version=$(jq -r .version src-tauri/tauri.conf.json)
+          cargo_version=$(sed -n 's/^version = "\(.*\)"$/\1/p' src-tauri/Cargo.toml | head -n 1)
+          echo "package.json=$package_version tauri.conf.json=$config_version Cargo.toml=$cargo_version"
+          test -n "$package_version" && test "$package_version" = "$config_version" && test "$package_version" = "$cargo_version"
+
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-22.04]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system packages (Tauri 2 prerequisites)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl wget file pkg-config libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm test
+      - run: npm run build
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test
+      - name: cargo check
+        working-directory: src-tauri
+        run: cargo check

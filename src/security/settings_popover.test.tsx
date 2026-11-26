@@ -4,9 +4,13 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { SettingsPopover } from "./settings_popover";
+import { check } from "@tauri-apps/plugin-updater";
+import { useUpdateStore } from "../update/update_store";
 import { useSettingsStore } from "./settings_store";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+vi.mock("@tauri-apps/plugin-updater", () => ({ check: vi.fn() }));
+vi.mock("@tauri-apps/plugin-process", () => ({ relaunch: vi.fn() }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 let remember = { available: true, enabled: false }; // what remember_status answers
@@ -22,7 +26,9 @@ beforeEach(() => {
     if (cmd === "remember_forget") return (remember = { ...remember, enabled: false });
     return undefined;
   });
-  useSettingsStore.setState({ autoLockMinutes: 15, error: "", remember: { available: true, enabled: false } });
+  vi.mocked(check).mockReset();
+  useUpdateStore.getState().reset();
+  useSettingsStore.setState({ autoLockMinutes: 15, checkUpdatesAtLaunch: true, error: "", remember: { available: true, enabled: false } });
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
@@ -55,7 +61,7 @@ describe("settings popover", () => {
   it("choosing a value saves it through settings_set and checks it", async () => {
     await open();
     await act(async () => radios()[1].click());
-    expect(invoke).toHaveBeenCalledWith("settings_set", { settings: { auto_lock_minutes: 5 } });
+    expect(invoke).toHaveBeenCalledWith("settings_set", { settings: { auto_lock_minutes: 5, check_updates_at_launch: true } });
     expect(useSettingsStore.getState().autoLockMinutes).toBe(5);
     expect(radios()[1].getAttribute("aria-checked")).toBe("true");
   });
@@ -63,7 +69,7 @@ describe("settings popover", () => {
   it("Never saves 0", async () => {
     await open();
     await act(async () => radios()[5].click());
-    expect(invoke).toHaveBeenCalledWith("settings_set", { settings: { auto_lock_minutes: 0 } });
+    expect(invoke).toHaveBeenCalledWith("settings_set", { settings: { auto_lock_minutes: 0, check_updates_at_launch: true } });
   });
 
   it("a failed save keeps the old value and shows the error", async () => {
@@ -92,6 +98,82 @@ describe("settings popover", () => {
     vi.mocked(invoke).mockResolvedValueOnce({ auto_lock_minutes: 60 });
     await act(async () => useSettingsStore.getState().load());
     expect(useSettingsStore.getState().autoLockMinutes).toBe(60);
+  });
+
+  it("load reads the update flag, defaulting to on when the file has none", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ auto_lock_minutes: 5, check_updates_at_launch: false });
+    await act(async () => useSettingsStore.getState().load());
+    expect(useSettingsStore.getState().checkUpdatesAtLaunch).toBe(false);
+  });
+
+  describe("updates", () => {
+    const launchBox = () => host.querySelector<HTMLInputElement>("input[aria-label='Check for updates at launch']")!;
+    const checkButton = () => Array.from(host.querySelectorAll("button")).find((b) => b.textContent?.startsWith("Check for updates") || b.textContent === "Checking...")!;
+    const status = () => host.querySelector("[data-update-status]")?.textContent ?? "";
+
+    it("has the launch setting on by default and the button", async () => {
+      await open();
+      expect(launchBox().checked).toBe(true);
+      expect(checkButton().textContent).toBe("Check for updates");
+      expect(status()).toBe("");
+    });
+
+    it("unticking saves through settings_set with the auto-lock value kept", async () => {
+      await open();
+      await act(async () => launchBox().click());
+      expect(invoke).toHaveBeenCalledWith("settings_set", { settings: { auto_lock_minutes: 15, check_updates_at_launch: false } });
+      expect(launchBox().checked).toBe(false);
+    });
+
+    it("a failed save keeps the box and shows the error", async () => {
+      await open();
+      vi.mocked(invoke).mockRejectedValueOnce("disk full");
+      await act(async () => launchBox().click());
+      expect(launchBox().checked).toBe(true);
+      expect(host.querySelector("[role=alert]")?.textContent).toContain("disk full");
+    });
+
+    it("says that GitHub is the only contact and nothing from the vault is sent", async () => {
+      await open();
+      const text = host.querySelector("[role=dialog]")!.textContent!;
+      expect(text).toContain("GitHub");
+      expect(text).toContain("nothing from your vault");
+    });
+
+    it("up to date", async () => {
+      vi.mocked(check).mockResolvedValue(null);
+      await open();
+      await act(async () => checkButton().click());
+      expect(status()).toBe("You are up to date.");
+    });
+
+    it("shows Checking... and disables the button while it runs", async () => {
+      let finish: (value: null) => void = () => undefined;
+      vi.mocked(check).mockReturnValue(new Promise((resolve) => (finish = resolve)));
+      await open();
+      await act(async () => checkButton().click());
+      expect(checkButton().textContent).toBe("Checking...");
+      expect(checkButton().disabled).toBe(true);
+      await act(async () => finish(null));
+      expect(checkButton().textContent).toBe("Check for updates");
+    });
+
+    it("an available update names the version and View opens the update dialog state", async () => {
+      vi.mocked(check).mockResolvedValue({ version: "1.0.1", currentVersion: "1.0.0", body: "n", downloadAndInstall: vi.fn() } as never);
+      await open();
+      await act(async () => checkButton().click());
+      expect(status()).toContain("Update 1.0.1 available");
+      await act(async () => Array.from(host.querySelectorAll("button")).find((b) => b.textContent === "View")!.click());
+      expect(useUpdateStore.getState().dialogOpen).toBe(true);
+      expect(host.querySelector("[role=dialog]")).toBeNull(); // the popover closed
+    });
+
+    it("an error is shown in readable form, as an alert", async () => {
+      vi.mocked(check).mockRejectedValue("could not reach the update server");
+      await open();
+      await act(async () => checkButton().click());
+      expect(host.querySelector("[data-update-status][role=alert]")!.textContent).toContain("could not reach the update server");
+    });
   });
 
   describe("remember on this device", () => {

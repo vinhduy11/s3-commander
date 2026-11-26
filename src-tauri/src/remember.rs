@@ -194,7 +194,7 @@ mod tests {
     fn an_unavailable_keychain_disables_the_option_without_errors() {
         let env = Env::new();
         let store = MemoryKeyStore::unavailable();
-        settings::save(&env.settings_path(), &AppSettings { auto_lock_minutes: 15, remember_on_device: true }).unwrap();
+        settings::save(&env.settings_path(), &AppSettings { auto_lock_minutes: 15, remember_on_device: true, ..AppSettings::default() }).unwrap();
         assert_eq!(status(&store, &env.settings_path()), RememberStatus { available: false, enabled: false });
         let mut vault = env.vault(CHEAP);
         vault.create("m").unwrap();
@@ -248,7 +248,7 @@ mod tests {
         let env = Env::new();
         let store = MemoryKeyStore::new();
         store.put([1u8; 32]);
-        settings::save(&env.settings_path(), &AppSettings { auto_lock_minutes: 15, remember_on_device: true }).unwrap();
+        settings::save(&env.settings_path(), &AppSettings { auto_lock_minutes: 15, remember_on_device: true, ..AppSettings::default() }).unwrap();
         let mut vault = env.vault(CHEAP);
         assert!(!unlock_remembered(&mut vault, &store, &env.settings_path(), &LaunchGate::new()));
     }
@@ -288,7 +288,7 @@ mod tests {
         let env = Env::new();
         let store = MemoryKeyStore::new();
         env.enabled(&store).lock();
-        settings::save(&env.settings_path(), &AppSettings { auto_lock_minutes: 15, remember_on_device: false }).unwrap();
+        settings::save(&env.settings_path(), &AppSettings { auto_lock_minutes: 15, remember_on_device: false, ..AppSettings::default() }).unwrap();
         let mut vault = env.vault(CHEAP);
         assert!(!unlock_remembered(&mut vault, &store, &env.settings_path(), &LaunchGate::new()));
         assert!(!vault.is_unlocked());

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Updater and CI</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:860px;margin:32px auto;padding:0 16px;color:#1b1d24}h2{border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:28px}code{background:#f2f3f6;padding:1px 4px;border-radius:3px}</style></head><body>
+<h1>In-app update check and GitHub Actions workflows</h1>
+<h2>Specs</h2>
+<ul>
+<li>Tauri updater plugin (desktop) and process plugin (relaunch) with minimal capabilities; signed updater artifacts; endpoint on GitHub Releases <code>latest.json</code>; public key in <code>tauri.conf.json</code>; identifier, product name and version unchanged.</li>
+<li>Update UX: quiet check once per launch after unlock (not in dev, silent on errors), "Check for updates" button with visible results, update dialog (versions, notes, progress, Restart now or Later), persisted setting "Check for updates at launch" (default on), warning before installing during a transfer, only the endpoint URL is contacted.</li>
+<li><code>ci.yml</code> (push to main, pull requests, macOS and Linux, version-match check) and <code>release.yml</code> (tag <code>v*</code> or manual, tag equals config version, macOS arm64 and Intel, Linux deb and AppImage, draft release with updater files).</li>
+<li>Docs: deployment, safety, architect, rule, README, CHANGELOG.</li>
+</ul>
+<h2>Actions</h2>
+<ul>
+<li>Rust: plugins registered in <code>lib.rs</code>; <code>settings.rs</code> gets <code>check_updates_at_launch</code> (serde default true), the settings save preserves <code>remember_on_device</code>.</li>
+<li>Frontend: <code>src/update/</code> (logic, api, store, dialog, launch hook), Settings popover (toggle, button, status line, data note), top-bar "Update X" button, dialog rendered in <code>App.tsx</code>.</li>
+<li>Workflows reviewed: runner names (<code>macos-latest</code>, <code>macos-15-intel</code>, <code>ubuntu-22.04</code>), Rust target for the Intel build, rust-cache workspace, tag/version comparison, least-privilege permissions (<code>contents: write</code> only on the release job).</li>
+<li>The branch was merged with <code>main</code> (no textual conflicts); 308 Rust and 695 frontend tests pass after the merge; <code>cargo check</code> has no warnings; <code>npm run build</code> passes.</li>
+</ul>
+<h2>Tradeoffs</h2>
+<ul>
+<li>Draft release: a human publishes it, so a bad build never reaches <code>latest.json</code> by itself; costs one manual click.</li>
+<li>No download cancel (the plugin has none); the dialog says so. Install during a transfer asks (wait, install anyway, cancel).</li>
+<li>Launch check silent on failure so a missing network never nags; a manual check shows the error.</li>
+<li>Builds are unsigned for Apple (updater signature only); Apple signing is left as commented variables.</li>
+<li>Updater key has no password to keep the secret setup to one value; custody is documented.</li>
+</ul>
+<h2>Measured vs inferred</h2>
+<ul>
+<li>Measured: Rust and vitest suites, <code>cargo check</code>, frontend build, YAML parse of both workflows, the version check script run locally, Chromium mock screenshots of the UI.</li>
+<li>Inferred (only verifiable on GitHub or on a real build): that the workflows run, that <code>macos-15-intel</code> and the Linux packages work, that <code>tauri-action@v0</code> publishes <code>latest.json</code> with the expected shape, that a real signed update downloads and installs, the Linux build, the Tauri window behavior.</li>
+</ul>
+</body></html>

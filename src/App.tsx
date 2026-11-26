@@ -7,6 +7,8 @@ import { useQueueStore } from "./queue/queue_store";
 import { useOpsStore } from "./ops/ops_store";
 import { useSettingsStore } from "./security/settings_store";
 import { useAutoLock } from "./security/use_auto_lock";
+import { UpdateDialog } from "./update/update_dialog";
+import { useLaunchUpdateCheck } from "./update/use_launch_check";
 import { keepUnsavedForLock } from "./viewer/viewer_store";
 import { BrowserScreen } from "./screens/browser_screen";
 import { MasterKeyScreen } from "./screens/master_key_screen";
@@ -56,12 +58,23 @@ function App() {
     if (unlocked) void useSettingsStore.getState().load();
   }, [unlocked]);
   useAutoLock(unlocked, () => void lock());
+  useLaunchUpdateCheck(unlocked);
 
   if (trying) return <MasterKeyScreen exists unlocking onDone={refreshStatus} />;
   if (!status) return null;
   if (!status.unlocked) return <MasterKeyScreen exists={status.exists} onDone={refreshStatus} />;
-  if (view === "profiles") return <ProfilesScreen onBack={() => setView("browser")} onLock={lock} />;
-  return <BrowserScreen onManageProfiles={() => setView("profiles")} onLock={lock} />;
+  const screen =
+    view === "profiles" ? (
+      <ProfilesScreen onBack={() => setView("browser")} onLock={lock} />
+    ) : (
+      <BrowserScreen onManageProfiles={() => setView("profiles")} onLock={lock} />
+    );
+  return (
+    <>
+      {screen}
+      <UpdateDialog />
+    </>
+  );
 }
 
 export default App;

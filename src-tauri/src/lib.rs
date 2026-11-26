@@ -445,7 +445,11 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
+            // Desktop only; the only network contact is the endpoint in tauri.conf.json.
+            #[cfg(desktop)]
+            app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
             let data_dir = app.path().app_data_dir()?;
             let vault_path = data_dir.join(VAULT_FILE_NAME);
             app.manage(SettingsPath(data_dir.join(SETTINGS_FILE_NAME)));

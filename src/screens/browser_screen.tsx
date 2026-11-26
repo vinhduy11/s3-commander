@@ -17,6 +17,7 @@ import { useOpsStore } from "../ops/ops_store";
 import { presignSelection } from "../ops/ops_targets";
 import { startPresign } from "../ops/presign_flow";
 import { ToastView } from "../ops/toast";
+import { useUpdateStore } from "../update/update_store";
 import { startViewer } from "../viewer/viewer_flow";
 import { ViewerHost } from "../viewer/viewer_host";
 import { useViewerStore } from "../viewer/viewer_store";
@@ -36,6 +37,8 @@ const FUNCTION_KEYS: { key: string; label: string; action?: () => void }[] = [
 export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: () => void; onLock: () => void }) {
   const profileId = useBrowseStore((state) => state.profileId);
   const splitRatio = useBrowseStore((state) => state.splitRatio);
+  const updatePhase = useUpdateStore((state) => state.update.phase);
+  const updateVersion = useUpdateStore((state) => state.update.version);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [topError, setTopError] = useState("");
   // F9 needs a server panel with something selected (marked items, else the cursor item).
@@ -122,6 +125,11 @@ export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: 
           ))}
         </select>
         <button type="button" onClick={onManageProfiles}>Profiles</button>
+        {(updatePhase === "available" || updatePhase === "installed") && (
+          <button type="button" className="primary" onClick={() => useUpdateStore.getState().openDialog()}>
+            {updatePhase === "installed" ? "Restart to update" : `Update ${updateVersion}`}
+          </button>
+        )}
         <SettingsPopover />
         <button type="button" onClick={onLock}><LockIcon />Lock</button>
       </div>

@@ -24,6 +24,7 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 ├── docs/changelog/       # dated implementation reports
 ├── docs/implement/       # implementation plans (roadmap for the S3 steps)
 ├── docs/artifact/        # offline copy of published artifacts (UI demo, app icon options)
+├── .github/workflows/    # ci.yml (tests on push and pull request), release.yml (tag v*: draft release with DMG and updater files)
 ├── index.html            # Vite entry
 ├── package.json          # frontend deps and npm scripts
 ├── vite.config.ts        # Vite config
@@ -34,6 +35,7 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 │   ├── styles.css        # all component styles, built on tokens.css (imported by App.tsx)
 │   ├── icons.tsx         # inline SVG icons: folder, parent, file types, lock, key, server, disk
 │   ├── security/                  # auto-lock (6a): idle_timer (pure), use_auto_lock, settings_store, settings_popover (incl. Remember on this device); launch_unlock (6b: remembered-key unlock at launch)
+│   ├── update/                    # in-app updates: update_logic (pure), update_api (plugin wrappers), update_store, update_dialog, use_launch_check
 │   ├── screens/
 │   │   ├── master_key_screen.tsx  # create / unlock the vault; shows the unlock wait after failed attempts and disables Unlock
 │   │   ├── profiles_screen.tsx    # add, edit, delete, test, duplicate profiles; shows Rust's per-field save errors

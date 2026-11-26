@@ -33,6 +33,15 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk1MDRFNkUzQ0E2NzQzRDcKUldUWFEyZks0K1lFbGNTQUdOTVY1eXJNQVhjM1EzZXA0dTdxenhuWFc1Ync5OWRhbXNzRUVTUTUK",
+      "endpoints": [
+        "https://github.com/vinhduy11/s3-commander/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

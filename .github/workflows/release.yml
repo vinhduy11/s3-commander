@@ -1,0 +1,97 @@
+# Builds the installers for a version tag and creates a DRAFT GitHub Release with the updater
+# files (latest.json and the signatures). NOT run on GitHub yet; the Linux jobs are not verified.
+# Steps, secrets and key custody: docs/claude/deployment.md.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-version:
+    name: Tag matches tauri.conf.json
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare
+        run: |
+          config_version=$(jq -r .version src-tauri/tauri.conf.json)
+          # A manual run is not on a tag: the version in the config names the release.
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then tag="$config_version"; fi
+          echo "tag=$tag tauri.conf.json=$config_version"
+          test "$tag" = "$config_version"
+
+  release:
+    name: Build (${{ matrix.name }})
+    needs: check-version
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS Apple Silicon
+            os: macos-latest
+            args: --target aarch64-apple-darwin
+            rust_targets: aarch64-apple-darwin
+          - name: macOS Intel
+            os: macos-15-intel
+            args: --target x86_64-apple-darwin
+            rust_targets: x86_64-apple-darwin
+          - name: Linux (not verified)
+            os: ubuntu-22.04
+            args: --bundles deb,appimage
+            rust_targets: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system packages (Tauri 2 prerequisites)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl wget file pkg-config libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Updater signing key (the content of the private key file) and its password. The key was
+          # generated without a password: leave TAURI_SIGNING_PRIVATE_KEY_PASSWORD empty or unset.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # The macOS build is NOT code signed or notarized. To sign, create these secrets and
+          # uncomment (see "Code signing and notarization" in docs/claude/deployment.md):
+          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          # APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          # APPLE_ID: ${{ secrets.APPLE_ID }}
+          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          tagName: v__VERSION__
+          releaseName: S3 Commander v__VERSION__
+          releaseBody: See CHANGELOG.md for the changes in this version.
+          releaseDraft: true
+          prerelease: false
+          uploadUpdaterJson: true
+          args: ${{ matrix.args }}

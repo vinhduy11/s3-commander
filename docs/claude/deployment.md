@@ -32,14 +32,22 @@ An unsigned (or not notarized) build downloaded from the internet is quarantined
 
 ## CI
 
-No CI file exists because the repository has no remote yet. A job on macOS and Linux runners would run, from the repo root (Linux runners first install the packages above):
+`.github/workflows/ci.yml` runs on every push to `main` and on pull requests: a `versions` job (the version in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json` must be equal) and a `test` job on `macos-latest` and `ubuntu-22.04` (fail-fast off): Linux system packages (Linux only), `npm ci`, `npm test`, `npm run build`, then `cargo test` and `cargo check` in `src-tauri`. It uses no secrets, and the tests use fakes and tempdirs and never touch a keychain, network or S3. **Not run on GitHub yet** (written and YAML-checked locally only).
 
-```
-cd src-tauri && cargo test
-cd src-tauri && cargo check
-npm ci
-npm test
-npm run build
-```
+## Release (GitHub Actions, automatic DMG and updater files)
 
-The tests use fakes and tempdirs and never touch a keychain, network or S3. Signing and notarization secrets belong to a separate release job, not to the test job.
+1. Bump the version in all three places: `package.json`, `src-tauri/Cargo.toml` (then `cargo check` to refresh `Cargo.lock`) and `src-tauri/tauri.conf.json`. CI fails when they differ.
+2. Move the `[Unreleased]` entries of `CHANGELOG.md` under the new version heading and commit.
+3. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`. The identifier `dev.local.s3commander` never changes (it names the keychain item and the app data folder).
+4. `.github/workflows/release.yml` (tags `v*` and manual runs) first checks that the tag equals the `tauri.conf.json` version, then builds with `tauri-apps/tauri-action@v0` on macOS Apple Silicon (`macos-latest`), macOS Intel (`macos-15-intel`, target `x86_64-apple-darwin`) and Linux (`ubuntu-22.04`, `deb` and `appimage`; **Linux is not verified**). It creates a **draft** GitHub Release holding the DMGs, the updater archives with their `.sig` signatures and `latest.json`. The builds are NOT code signed or notarized (Apple variables are commented out in the workflow; see the section above).
+5. Open the draft, check the files, and **publish** it. `latest.json` only becomes reachable at `releases/latest/download/latest.json` (the updater endpoint) once the release is published and is the latest one. Until then installed apps see no update.
+
+Repository secrets to create (Settings, Secrets and variables, Actions): `TAURI_SIGNING_PRIVATE_KEY` = the content of the private key file. The key was generated without a password, so leave `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` unset (the workflow passes it as empty). `GITHUB_TOKEN` is provided by GitHub; the release job asks for `contents: write`, everything else for `contents: read`.
+
+Key custody: the private key signs every update. Keep it only in the maintainer's key store and in the repository secret, make an offline backup, and never commit it, paste it into an issue or print it in a log. If it is lost, installed apps can no longer verify a new update: users would have to install a new build by hand, signed with a new key whose public key replaces `plugins.updater.pubkey`. The public key in `tauri.conf.json` is not secret.
+
+Local signed build (for trying the updater files): `TAURI_SIGNING_PRIVATE_KEY=<path to the key file> npm run tauri build`. Tauri accepts the key content or a path; do not echo it.
+
+The first installed version must be one that already contains the updater (1.0.0 does not): older installs have no update check and must be replaced by hand once.
+
+Data sent: the update check requests the endpoint URL (`latest.json` on GitHub) and nothing else, then downloads the release archive only after you press Download and install. The archive is installed only if its signature matches the public key built into the app.

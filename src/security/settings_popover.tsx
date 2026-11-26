@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { GearIcon } from "../icons";
+import { statusLine } from "../update/update_logic";
+import { useUpdateStore } from "../update/update_store";
 import { AUTO_LOCK_CHOICES, useSettingsStore } from "./settings_store";
 
 /** Settings button with a small popover next to Lock. */
@@ -11,6 +13,11 @@ export function SettingsPopover() {
   const minutes = useSettingsStore((state) => state.autoLockMinutes);
   const error = useSettingsStore((state) => state.error);
   const remember = useSettingsStore((state) => state.remember);
+  const checkAtLaunch = useSettingsStore((state) => state.checkUpdatesAtLaunch);
+  const update = useUpdateStore((state) => state.update);
+  const busy = update.phase === "checking" || update.phase === "downloading";
+  const status = statusLine(update);
+  const hasDialog = update.phase === "available" || update.phase === "downloading" || update.phase === "installed";
 
   useEffect(() => {
     if (!open) return;
@@ -79,6 +86,40 @@ export function SettingsPopover() {
             {remember.available
               ? "Keeps a key in the system keychain and opens the vault with it only when the app starts. Lock and auto-lock still ask for the master key."
               : "Not available on this system."}
+          </p>
+          <div className="updates">
+            <label className="remember-row">
+              <input
+                type="checkbox"
+                aria-label="Check for updates at launch"
+                checked={checkAtLaunch}
+                onChange={(event) => void useSettingsStore.getState().setCheckUpdatesAtLaunch(event.currentTarget.checked)}
+              />
+              <span>Check for updates at launch</span>
+            </label>
+            <button type="button" disabled={busy} onClick={() => void useUpdateStore.getState().checkManual()}>
+              {update.phase === "checking" ? "Checking..." : "Check for updates"}
+            </button>
+          </div>
+          {status && (
+            <p className={update.phase === "error" ? "alert-text" : "muted popover-note"} role={update.phase === "error" ? "alert" : "status"} data-update-status>
+              {status}
+              {hasDialog && (
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => {
+                    useUpdateStore.getState().openDialog();
+                    setOpen(false);
+                  }}
+                >
+                  View
+                </button>
+              )}
+            </p>
+          )}
+          <p className="muted popover-note">
+            An update check asks GitHub for the release file and nothing else; nothing from your vault, profiles or files is sent. An update is installed only after its signature matches the key built into this app.
           </p>
           {error && <p className="alert-text" role="alert">{error}</p>}
         </div>
