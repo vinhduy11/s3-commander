@@ -1,9 +1,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { DiskIcon, ServerIcon } from "../icons";
+import { DiskIcon, RefreshIcon, ServerIcon } from "../icons";
 import { EntryIcon } from "../icons";
 import { useBrowseStore, type PanelSource, type Side } from "./browse_store";
 import { buildRows, formatDate, formatSize, splitName } from "./navigation";
-import { goUp, loadAll, loadMore, openRowAt, openSource } from "./panel_loader";
+import { goUp, loadAll, loadMore, openRowAt, openSource, reloadPanel } from "./panel_loader";
+import { reloadShortcut } from "./reload_triggers";
 import { type SortKey } from "./sort";
 import { openEmptyMenu, openMenuAtCursor, openRowMenu, useContextMenu } from "./context_menu";
 import { useRubberBand } from "./rubber_band";
@@ -186,6 +187,19 @@ export function FilePanel({ side }: { side: Side }) {
           ))}
         </select>
         <span className="path" title={panel.path}>{panel.source?.kind === "bucket" ? `/${panel.path}` : panel.path}</span>
+        <button
+          type="button"
+          className={`reload-btn${panel.loading ? " spinning" : ""}`}
+          aria-label="Reload"
+          title={`Reload (${reloadShortcut()})`}
+          disabled={!panel.source}
+          onClick={() => {
+            void reloadPanel(side);
+            panelRef.current?.focus({ preventScroll: true }); // keep the panel keys working after a click
+          }}
+        >
+          <RefreshIcon />
+        </button>
       </div>
       <div className="list-head row">
         {HEADERS.map(({ key, label, className }) => {
@@ -263,7 +277,9 @@ export function FilePanel({ side }: { side: Side }) {
           ? panel.error
           : panel.loading
             ? "Loading..."
-            : markedNames.length
+            : panel.notice
+              ? panel.notice
+              : markedNames.length
               ? `${markedNames.length} selected, ${formatSize(markedSize)}`
               : `${panel.entries.length} item(s)${panel.nextToken ? " (more below)" : ""}`}
         {panel.source?.kind === "bucket" && panel.nextToken && !panel.error && (

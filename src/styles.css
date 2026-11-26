@@ -111,6 +111,11 @@ body.resizing * { cursor: col-resize !important; }
 .panel.active .phead { background: var(--surface); }
 .phead select { max-width: 45%; min-height: 24px; padding: 1px 4px; font-size: var(--text-sm); }
 .phead .path { font: var(--text-sm) var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.reload-btn { all: unset; box-sizing: border-box; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: var(--radius); color: var(--muted); cursor: pointer; }
+.reload-btn:hover:not(:disabled) { color: var(--fg); background: var(--accent-soft); }
+.reload-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.reload-btn:disabled { opacity: 0.4; cursor: default; }
+.reload-btn.spinning svg { animation: spin 0.8s linear infinite; }
 .tag { font: 700 10px/1 var(--font-ui); letter-spacing: 0.06em; color: var(--accent); border: 1px solid currentColor; padding: 3px 5px; border-radius: var(--radius); display: inline-flex; align-items: center; gap: 4px; flex: none; }
 .tag.local { color: var(--ok); }
 

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Panel reload</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:860px;margin:32px auto;padding:0 16px;color:#1b1d24}h2{border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:28px}code{background:#f2f3f6;padding:1px 4px;border-radius:3px}</style></head><body>
+<h1>Reload a panel's listing</h1>
+<h2>Specs</h2>
+<ul>
+<li>Owner request: when a local or server folder changes there was no way to reload the panel.</li>
+<li>Reload button in each panel header (spinning while loading, disabled without a source); Cmd/Ctrl+R for the active panel (F5 stays Copy); "Refresh" in the row and empty-space context menus.</li>
+<li>Keep context: old rows stay while loading, cursor follows the entry name, marks and anchor kept for names that still exist, scroll, sort, column widths and splitter untouched. Server: first page again. Failure keeps rows and shows the error. A vanished Local folder falls back to the nearest parent with a footer notice. Empty server prefix is an empty listing.</li>
+<li>Local panels reload silently when the window regains focus (debounce about 1 s; skipped for dialog, viewer, drag, rubber band, loading; never server panels). Always on.</li>
+</ul>
+<h2>Actions</h2>
+<ul>
+<li>New <code>reload_state.ts</code> (pure <code>keepAfterReload</code>) and <code>reload_triggers.ts</code> (<code>installReloadKey</code>, <code>installFocusReload</code>, <code>reloadShortcut</code>).</li>
+<li><code>panel_loader.ts</code>: <code>openPath</code> and new <code>reloadPanel</code> share one internal <code>load</code> (same request counter, stale drop and <code>loading</code> handling); parent fallback walks up with <code>parentOf</code>.</li>
+<li><code>browse_store.ts</code>: <code>setListing</code> option <code>keep</code>, <code>notice</code> field and <code>setNotice</code>. <code>file_panel.tsx</code>: header button and notice in the footer. <code>context_menu.ts</code>: Refresh item last in both menus. <code>browser_screen.tsx</code>: installs the two triggers. <code>icons.tsx</code>: <code>RefreshIcon</code>. <code>styles.css</code>: <code>.reload-btn</code>.</li>
+<li>Tests first (17 failing, saved), then green: <code>reload_state.test.ts</code>, <code>panel_reload.test.ts</code>, <code>reload_ui.test.tsx</code>, <code>reload_menu.test.ts</code>, <code>reload_keys.test.ts</code>; two expectations in <code>context_menu.test.ts</code> extended with the new last item.</li>
+<li>Docs: README structure, CHANGELOG, architect and rule notes.</li>
+</ul>
+<h2>Tradeoffs</h2>
+<ul>
+<li>Reused the existing loader with a <code>reload</code> flag instead of a second loader, so the race rules exist once. Cost: <code>load</code> has three small option branches.</li>
+<li>Cmd/Ctrl+R always calls <code>preventDefault</code>, even while a dialog or input is active, so the webview can never reload and lose state; it just does nothing there.</li>
+<li>Focus reload is silent (no loading flag, no error) so a background refresh never flashes the footer; a real failure shows only when the user reloads by hand. A rubber band is detected by its <code>.band</code> element because its state is local to its hook (no store was added).</li>
+<li>Focus reload instead of a filesystem watcher: simplest, no new Rust dependency, but changes made while the window stays focused are not seen until a manual reload. A <code>notify</code>-based watcher is a possible follow-up.</li>
+<li>The existing <code>refreshPanel</code> after operations still resets marks and scroll (unchanged, out of scope).</li>
+</ul>
+<h2>Measured</h2>
+<ul>
+<li><code>npm test</code>: 45 files, 628 tests pass; <code>npm run build</code> ok.</li>
+<li>Chromium mock screenshots (fake data, in-page Tauri mock) in light and dark: idle, spinning, content changed with cursor and marks kept, vanished folder notice, menu with Refresh. In the mock, Ctrl+R did not reload the page; the kept cursor and marks were read back from the DOM.</li>
+</ul>
+<h2>Inferred, not exercised</h2>
+<ul>
+<li>The real Tauri window and WebKit: window <code>focus</code> events when returning from Finder, Cmd+R inside the real webview (the Tauri/WebKit default reload shortcut), real filesystem changes, a real server, timing of a slow listing.</li>
+</ul>
+</body></html>

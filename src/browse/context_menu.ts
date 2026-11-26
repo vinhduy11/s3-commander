@@ -11,7 +11,8 @@ import { useViewerStore } from "../viewer/viewer_store";
 import { cursorTarget, panelLocation, presignSelection, selectTargets } from "../ops/ops_targets";
 import { useBrowseStore, type Side } from "./browse_store";
 import { buildRows } from "./navigation";
-import { openRowAt } from "./panel_loader";
+import { openRowAt, reloadPanel } from "./panel_loader";
+import { reloadShortcut } from "./reload_triggers";
 import { openPatternDialog } from "./selection_flow";
 import { SORT_KEYS, type SortKey } from "./sort";
 
@@ -143,7 +144,8 @@ export function buildMenuItems(side: Side, kind: MenuKind): MenuItem[] {
     enabled: panelLocation(browse()[side]) !== null,
     run: () => startNewFolder(side),
   };
-  return kind === "empty" ? [...selectionItems(side), ...emptyPresignItems(side), ...sortItems(side), newFolder] : [...rowItems(side), newFolder];
+  const refresh: MenuItem = { id: "refresh", label: "Refresh", shortcut: reloadShortcut(), enabled: browse()[side].source !== null, run: () => void reloadPanel(side) };
+  return kind === "empty" ? [...selectionItems(side), ...emptyPresignItems(side), ...sortItems(side), newFolder, refresh] : [...rowItems(side), newFolder, refresh];
 }
 
 /** Server panels only: after marking files, a right-click on empty space can presign the marked rows (never the cursor row alone). */

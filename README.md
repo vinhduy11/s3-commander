@@ -55,7 +55,9 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 │       ├── panel_columns.ts       # pure column-width rules (limits, clamp, step, reset, fit to panel width) and guarded localStorage load/save
 │       ├── column_resizer.tsx     # the draggable, keyboard-operable border on the Ext/Size/Date header cells (role=separator)
 │       ├── browse_api.ts          # typed wrappers over the Tauri commands
-│       ├── panel_loader.ts        # loads listings into the store, drops stale responses; loadAll (capped) for server panels
+│       ├── panel_loader.ts        # loads listings into the store, drops stale responses; reloadPanel (keeps context); loadAll (capped) for server panels
+│       ├── reload_state.ts        # pure rule for a reload: cursor by name, marks and anchor pruned to names that still exist
+│       ├── reload_triggers.ts     # Cmd/Ctrl+R (active panel) and the silent reload of Local panels when the window regains focus
 │       ├── file_panel.tsx         # one panel: source selector, sortable column headers, virtualised list, keyboard, footer hint
 │       ├── context_menu.ts        # right-click menu: state, data-driven item list, selection rules, position clamp
 │       ├── context_menu_view.tsx  # menu surface (role=menu), keyboard, close rules

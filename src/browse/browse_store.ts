@@ -6,6 +6,7 @@ import { create } from "zustand";
 import { buildRows } from "./navigation";
 import { clampWidth, loadColumns, resetWidth, saveColumns, type ColumnKey, type PanelColumns } from "./panel_columns";
 import { clampRatio, loadSplit, saveSplit } from "./panel_split";
+import { keepAfterReload } from "./reload_state";
 import { allNames, invertMarks, marksOf, matchNames, rangeNames, selectionText, toggleName, type Marks } from "./selection";
 import { DEFAULT_SORT, nextSort, sortEntries, type SortKey, type SortState } from "./sort";
 
@@ -30,12 +31,15 @@ export type PanelState = {
   scrollTop: number;
   loading: boolean;
   error: string;
+  /** Short non-error text for the footer (a reload fell back to a parent folder); cleared by the next listing. */
+  notice: string;
   /** Per panel; survives source switches, not an app restart. */
   sort: SortState;
 };
 
 type Listing = { path: string; entries: PanelEntry[]; nextToken: string | null };
-type ListingOptions = { append?: boolean; focusName?: string };
+/** `keep`: a reload of the same path; cursor, marks, anchor and scroll are kept (see reload_state.ts). */
+type ListingOptions = { append?: boolean; focusName?: string; keep?: boolean };
 
 export type BrowseState = {
   left: PanelState;
@@ -73,6 +77,7 @@ export type BrowseState = {
   setScrollTop: (side: Side, scrollTop: number) => void;
   setLoading: (side: Side, loading: boolean) => void;
   setError: (side: Side, error: string) => void;
+  setNotice: (side: Side, notice: string) => void;
   setActive: (side: Side) => void;
   setBuckets: (buckets: string[]) => void;
   setProfile: (profileId: string | null) => void;
@@ -91,6 +96,7 @@ export const emptyPanel = (): PanelState => ({
   scrollTop: 0,
   loading: false,
   error: "",
+  notice: "",
   sort: DEFAULT_SORT,
 });
 
@@ -142,7 +148,8 @@ export const useBrowseStore = create<BrowseState>((set) => {
     setListing: (side, listing, options = {}) =>
       patchPanel(side, (panel) => {
         const entries = sortEntries(options.append ? [...panel.entries, ...listing.entries] : listing.entries, panel.sort);
-        const next = { ...panel, entries, path: listing.path, nextToken: listing.nextToken, loading: false, error: "" };
+        const next = { ...panel, entries, path: listing.path, nextToken: listing.nextToken, loading: false, error: "", notice: "" };
+        if (options.keep && !options.append && listing.path === panel.path) return { ...next, ...keepAfterReload(panel, entries) };
         if (options.append) {
           const anchor = panel.anchor !== null && entries.some((entry) => entry.name === panel.anchor) ? panel.anchor : null;
           return { ...next, anchor, cursor: cursorAfter(panel, next) };
@@ -201,6 +208,7 @@ export const useBrowseStore = create<BrowseState>((set) => {
     setScrollTop: (side, scrollTop) => patchPanel(side, (panel) => ({ ...panel, scrollTop })),
     setLoading: (side, loading) => patchPanel(side, (panel) => ({ ...panel, loading })),
     setError: (side, error) => patchPanel(side, (panel) => ({ ...panel, error, loading: false })),
+    setNotice: (side, notice) => patchPanel(side, (panel) => ({ ...panel, notice })),
     setSplitRatio: (ratio) => {
       const next = clampRatio(ratio);
       saveSplit(next);

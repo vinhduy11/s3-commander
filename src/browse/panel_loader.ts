@@ -10,7 +10,21 @@ const requestCounter: Record<Side, number> = { left: 0, right: 0 };
 const sameSource = (first: PanelSource | null, second: PanelSource | null) =>
   first?.kind === second?.kind && (first?.kind !== "bucket" || first.bucket === (second as typeof first).bucket);
 
-export async function openPath(side: Side, path: string, focusName?: string): Promise<void> {
+type LoadOptions = { focusName?: string; reload?: boolean; silent?: boolean };
+
+/** Nearest folder above `path` that lists, with its listing; null when none does (not even "/"). */
+async function listNearestParent(path: string, isCurrent: () => boolean) {
+  for (let parent = parentOf({ kind: "local" }, path); parent && isCurrent(); parent = parentOf({ kind: "local" }, parent.path)) {
+    try {
+      return await listLocalDir(parent.path);
+    } catch {
+      // keep walking up
+    }
+  }
+  return null;
+}
+
+async function load(side: Side, path: string, { focusName, reload = false, silent = false }: LoadOptions): Promise<void> {
   const store = useBrowseStore.getState();
   const { source } = store[side];
   const { profileId } = store;
@@ -26,22 +40,44 @@ export async function openPath(side: Side, path: string, focusName?: string): Pr
   const dropStale = () => {
     if (ticket === requestCounter[side]) useBrowseStore.getState().setLoading(side, false);
   };
-  store.setLoading(side, true);
+  // The old rows stay in the store while loading; only the flag changes. A silent reload does not even show it.
+  if (!silent) store.setLoading(side, true);
   try {
     if (source.kind === "local") {
-      const listing = await listLocalDir(path);
-      if (isCurrent()) useBrowseStore.getState().setListing(side, { ...listing, nextToken: null }, { focusName });
-      else dropStale();
+      try {
+        const listing = await listLocalDir(path);
+        if (isCurrent()) useBrowseStore.getState().setListing(side, { ...listing, nextToken: null }, { focusName, keep: reload });
+        else dropStale();
+      } catch (err) {
+        if (!reload) throw err;
+        // The folder is gone or unreadable: show the nearest parent that lists.
+        const parent = await listNearestParent(path, isCurrent);
+        if (!isCurrent()) return dropStale();
+        if (!parent) throw err;
+        useBrowseStore.getState().setListing(side, { ...parent, nextToken: null });
+        useBrowseStore.getState().setNotice(side, `Folder no longer exists, showing ${parent.path}`);
+      }
     } else {
       const page = await listBucketDir(profileId as string, source.bucket, path, null);
-      if (isCurrent()) useBrowseStore.getState().setListing(side, { path, ...page }, { focusName });
+      if (isCurrent()) useBrowseStore.getState().setListing(side, { path, ...page }, { focusName, keep: reload });
       else dropStale();
     }
   } catch (err) {
-    if (isCurrent()) useBrowseStore.getState().setError(side, String(err));
-    else dropStale();
+    if (!isCurrent()) dropStale();
+    else if (silent) useBrowseStore.getState().setLoading(side, false); // a background reload never shows an error
+    else useBrowseStore.getState().setError(side, String(err));
   }
 }
+
+export const openPath = (side: Side, path: string, focusName?: string): Promise<void> => load(side, path, { focusName });
+
+/**
+ * Reload the panel's current path, keeping the user's context (rows stay while loading; cursor, marks,
+ * anchor and scroll are kept by name). Server listings restart from the first page. `silent` (the
+ * window-focus reload) shows no loading state and no error.
+ */
+export const reloadPanel = (side: Side, options: { silent?: boolean } = {}): Promise<void> =>
+  load(side, useBrowseStore.getState()[side].path, { reload: true, silent: options.silent });
 
 export async function openSource(side: Side, source: PanelSource | null): Promise<void> {
   useBrowseStore.getState().setSource(side, source);

@@ -66,7 +66,7 @@ describe("selection on right-click", () => {
     openEmptyMenu("left", 5, 6);
     expect(browse().left.marked).toEqual({ "a.txt": true });
     expect(browse().active).toBe("left");
-    expect(ids(buildMenuItems("left", "empty"))).toEqual(["select-all", "invert-selection", "select-pattern", "clear-selection", "sort-name", "sort-ext", "sort-size", "sort-date", "sort-reverse", "new-folder"]);
+    expect(ids(buildMenuItems("left", "empty"))).toEqual(["select-all", "invert-selection", "select-pattern", "clear-selection", "sort-name", "sort-ext", "sort-size", "sort-date", "sort-reverse", "new-folder", "refresh"]);
   });
 
   it("is ignored while a dialog is open", () => {
@@ -96,8 +96,8 @@ describe("item set and state", () => {
   it("file row: no Open, all actions enabled, shortcut hints, New folder last", () => {
     openRowMenu("left", 2, 0, 0);
     const items = buildMenuItems("left", "row");
-    expect(ids(items)).toEqual(["view", "edit", "copy", "move", "rename", "delete", "new-folder"]);
-    expect(items.map((item) => item.shortcut)).toEqual(["F3", "F4", "F5", "F6", "F2", "F8", "F7"]);
+    expect(ids(items)).toEqual(["view", "edit", "copy", "move", "rename", "delete", "new-folder", "refresh"]);
+    expect(items.map((item) => item.shortcut).slice(0, 7)).toEqual(["F3", "F4", "F5", "F6", "F2", "F8", "F7"]);
     expect(items.every((item) => item.enabled)).toBe(true);
   });
 

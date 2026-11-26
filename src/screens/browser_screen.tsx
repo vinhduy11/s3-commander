@@ -9,6 +9,7 @@ import { PanelSplitter, splitColumns } from "../browse/panel_splitter";
 import { listBuckets, listProfiles, type Profile } from "../browse/browse_api";
 import { useBrowseStore } from "../browse/browse_store";
 import { openSource } from "../browse/panel_loader";
+import { installFocusReload, installReloadKey } from "../browse/reload_triggers";
 import { TransferQueuePanel } from "../queue/queue_panel";
 import { OpsDialogs } from "../ops/ops_dialogs";
 import { startDelete, startNewFolder, startRename, startTransfer } from "../ops/ops_flow";
@@ -96,6 +97,12 @@ export function BrowserScreen({ onManageProfiles, onLock }: { onManageProfiles: 
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  // Cmd/Ctrl+R reloads the active panel; Local panels also reload when the window regains focus.
+  useEffect(() => {
+    const stops = [installReloadKey(), installFocusReload()];
+    return () => stops.forEach((stop) => stop());
   }, []);
 
   return (
