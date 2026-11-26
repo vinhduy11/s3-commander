@@ -9,9 +9,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::app_error::AppError;
 
-/// Largest object a single PutObject or GetObject-to-file transfer may have. Larger objects need
-/// multipart upload and ranged download, which arrive in step 4 (not implemented here).
-pub const MAX_SINGLE_OBJECT_BYTES: u64 = 5 * 1024 * 1024 * 1024;
 /// How many keys one DeleteObjects call may carry.
 pub const DELETE_BATCH_SIZE: usize = 1000;
 
@@ -169,8 +166,6 @@ pub struct PlanSummary {
     pub conflict_count: usize,
     /// Every conflict, in plan order, with both sides' size and date for the per-item dialog.
     pub conflicts: Vec<ConflictInfo>,
-    /// Upload or download items above the single-transfer limit (step 4 lifts it).
-    pub too_large_count: usize,
 }
 
 pub fn direction(source: &Location, dest: &Location) -> Direction {
@@ -191,10 +186,6 @@ pub fn location_ref(location: &Location, rel: &str, is_dir: bool) -> ItemRef {
             key: format!("{prefix}{rel}{}", if is_dir { "/" } else { "" }),
         },
     }
-}
-
-pub fn too_large_message(size: u64) -> String {
-    format!("{} is above the 5 GiB single-transfer limit (large files arrive with step 4)", format_bytes(size))
 }
 
 pub fn format_bytes(bytes: u64) -> String {
@@ -333,7 +324,6 @@ pub fn summarize(
 ) -> PlanSummary {
     let way = direction(&request.source, &request.dest);
     let conflicts = find_conflicts(plan, existing);
-    let crosses_local_boundary = matches!(way, Direction::Upload | Direction::Download);
     PlanSummary {
         direction: way,
         files: plan.iter().filter(|item| !item.is_dir).count(),
@@ -354,11 +344,6 @@ pub fn summarize(
                 }
             })
             .collect(),
-        too_large_count: if crosses_local_boundary {
-            plan.iter().filter(|item| item.size > MAX_SINGLE_OBJECT_BYTES).count()
-        } else {
-            0
-        },
     }
 }
 
@@ -585,21 +570,18 @@ mod tests {
     }
 
     #[test]
-    fn summary_counts_size_conflicts_and_too_large_for_upload_only() {
+    fn summary_counts_size_and_conflicts_with_no_size_limit() {
+        const OVER_FIVE_GIB: u64 = (5 << 30) + 1;
         let req = request(local("/s"), bucket("b", ""), vec![top("a.txt", false), top("huge", false), top("d", true)]);
-        let plan = build_plan(&req, &[file("a.txt", 10), file("huge", MAX_SINGLE_OBJECT_BYTES + 1), folder("d")]);
+        let plan = build_plan(&req, &[file("a.txt", 10), file("huge", OVER_FIVE_GIB), folder("d")]);
         let summary = summarize(&req, &plan, &HashSet::from([object("b", "a.txt")]), &HashMap::from([(object("b", "a.txt"), ExistingInfo { size: 4, modified: Some(50) })]));
         assert_eq!((summary.files, summary.dirs), (2, 1));
-        assert_eq!(summary.total_bytes, 10 + MAX_SINGLE_OBJECT_BYTES + 1);
+        assert_eq!(summary.total_bytes, 10 + OVER_FIVE_GIB);
         assert_eq!(summary.conflict_count, 1);
         assert_eq!(
             summary.conflicts,
             vec![ConflictInfo { dest: "b/a.txt".into(), incoming_size: 10, incoming_modified: Some(100), existing_size: Some(4), existing_modified: Some(50) }]
         );
-        assert_eq!(summary.too_large_count, 1);
-        let copy = request(bucket("b", ""), bucket("c", ""), vec![top("huge", false)]);
-        let copy_plan = build_plan(&copy, &[file("huge", MAX_SINGLE_OBJECT_BYTES + 1)]);
-        assert_eq!(summarize(&copy, &copy_plan, &HashSet::new(), &HashMap::new()).too_large_count, 0);
     }
 
     #[test]
@@ -608,11 +590,5 @@ mod tests {
         let sizes: Vec<_> = delete_batches(&keys).iter().map(|batch| batch.len()).collect();
         assert_eq!(sizes, [1000, 1000, 500]);
         assert!(delete_batches(&[]).is_empty());
-    }
-
-    #[test]
-    fn too_large_message_names_the_limit_and_step() {
-        let message = too_large_message(6 * 1024 * 1024 * 1024);
-        assert!(message.contains("5 GiB") && message.contains("step 4") && message.contains("6.00 GiB"), "{message}");
     }
 }

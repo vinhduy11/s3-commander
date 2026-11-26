@@ -53,6 +53,8 @@ Common client setup (step 2 owns it): one `aws_sdk_s3::Client` per unlocked prof
 
 ## Step 4 — Large upload and download with progress
 
+Status: 4a (the Rust engine: multipart upload with retry, abort and resume, ranged download with resume, `ProgressSink` and `CancelToken` hooks, wired into the 3a engine, 5 GiB limit removed) is implemented; 4b (queue UI, Tauri events, Cancel and Retry buttons, parallel items) is not. See `docs/claude/architect.md` (Transfer engine).
+
 - Per-profile transfer settings, modelled on the AWS CLI `s3` configuration (`aws configure set s3.multipart_threshold 100MB --profile <name>`), stored in the vault profile (new optional fields with serde defaults so existing vaults still load) and edited in a "Transfer settings" section of the profile form:
   - `multipart_threshold`: objects at or above this size upload as multipart; below it, a single PutObject.
   - `multipart_chunksize`: part size; raised automatically when needed so the object fits in 10,000 parts; minimum 5 MiB (S3 rule).

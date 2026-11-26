@@ -2,7 +2,7 @@
 
 Tauri desktop app to manage files and directories on a MinIO server (S3-compatible API) with a Total Commander-style dual-pane UI. Multiple profiles, secrets encrypted in an app vault, unlocked with a master key. See `CLAUDE.md` and `docs/claude/` for the design.
 
-Status: multi-profile vault, browsing (dual-pane Local / bucket panels, profile switcher, profile test and duplicate) and basic file operations: F5 Copy, F6 Move, F7 New folder, F8 Delete, F2 Rename between Local and server panels, with a per-item conflict dialog (step 3a). Drag and drop and the context menu (3b, 3c), large transfers with progress (step 4) and view/edit (step 5) are later steps. Known limit: upload and download are one PutObject/GetObject, so a single file above 5 GiB fails with a clear error until step 4 (`docs/implement/s3-commander-roadmap.md`).
+Status: multi-profile vault, browsing (dual-pane Local / bucket panels, profile switcher, profile test and duplicate) and basic file operations: F5 Copy, F6 Move, F7 New folder, F8 Delete, F2 Rename between Local and server panels, with a per-item conflict dialog (step 3a). Drag and drop and the context menu (3b, 3c) are in. Uploads and downloads of any size (up to the 5 TiB object limit) go through the multipart / ranged transfer engine (step 4a, Rust only): parts in parallel with retry, abort on failure or cancel, resume of a partly uploaded multipart, ranged downloads through a `.part` file. The transfer queue with progress, Cancel and Retry (step 4b) and view/edit (step 5) are later steps (`docs/implement/s3-commander-roadmap.md`).
 
 ## Development
 
@@ -86,8 +86,12 @@ npm test               # vitest: panel store, navigation helpers, operation targ
         ├── local.rs      # local_list_dir over std::fs; no Tauri dependency
         │                     # (also local_stat_paths: folder/file, parent and name of OS-dropped paths)
         ├── transfer_plan.rs  # pure transfer planner: key mapping, validation, conflicts, resolutions, summary, delete batches
-        ├── transfer_run.rs   # operation engine: expand, probe, resolve, run, move = copy + verify + delete; delete, new folder, rename
-        ├── s3_ops.rs     # object ops: list all, head, put, get, CopyObject / UploadPartCopy, DeleteObjects in batches
+        ├── transfer_run.rs   # operation engine: expand, probe, resolve, run, move = copy + verify + delete; delete, new folder, rename; calls the upload and download engines with the profile's TransferEnv
+        ├── s3_ops.rs     # object ops: list all, head, empty put, CopyObject / UploadPartCopy, DeleteObjects in batches
+        ├── part_plan.rs  # pure plan_parts(size, chunksize): part size raised to 5 MiB / 10,000 parts, 5 GiB part and 5 TiB object limits
+        ├── transfer_control.rs # ProgressSink (+ no-op), CancelToken, RetryPolicy, EngineError, run_bounded, TransferEnv (settings + sink + token + retry)
+        ├── multipart_upload.rs # upload_file (PutObject below the threshold, else parallel multipart with retry and abort) and resume_upload (ListParts)
+        ├── ranged_download.rs  # download_file: ranged GetObject into <name>.part (+ ETag/size sidecar, resume), then atomic rename
         ├── presign.rs    # presigned GET URLs (local SigV4 computation): expiry bounds, content-disposition, folder expansion, batch; no Tauri dependency
         ├── text_file.rs  # write_text_file for the URL list chosen in the save dialog; no Tauri dependency
         ├── local_ops.rs  # local walk, copy tree, rename, New folder, Trash behind the TrashBin trait

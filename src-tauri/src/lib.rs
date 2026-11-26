@@ -1,12 +1,16 @@
 pub mod app_error;
 pub mod aws_config;
 pub mod local;
+pub mod multipart_upload;
+pub mod part_plan;
+pub mod ranged_download;
 pub mod profile_rules;
 pub mod local_ops;
 pub mod presign;
 pub mod s3;
 pub mod s3_ops;
 pub mod text_file;
+pub mod transfer_control;
 pub mod transfer_plan;
 pub mod transfer_settings;
 pub mod transfer_run;
@@ -196,6 +200,14 @@ fn client_for_locations(
     client_for(vault, cache, profile_id).map(Some)
 }
 
+/// Transfer settings of the profile (AWS CLI defaults for what it leaves unset); defaults when no
+/// profile is involved (a local-only transfer).
+fn transfer_env_for(vault: &VaultState, profile_id: &Option<String>) -> Result<transfer_control::TransferEnv, AppError> {
+    let Some(profile_id) = profile_id.as_deref() else { return Ok(transfer_control::TransferEnv::default()) };
+    let profile = lock_vault(vault).get_profile(profile_id)?;
+    Ok(transfer_control::TransferEnv::new(transfer_settings::effective_transfer_settings(&profile.transfer)))
+}
+
 /// Dry run of a copy or move: counts, total size and conflicts. Writes nothing.
 #[tauri::command]
 async fn transfer_preview(
@@ -217,7 +229,8 @@ async fn transfer_execute(
     resolutions: Resolutions,
 ) -> Result<RunReport, AppError> {
     let client = client_for_locations(&state, &clients, &profile_id, &[&request.source, &request.dest])?;
-    transfer_run::run_transfer(client.as_ref(), &request, &resolutions).await
+    let env = transfer_env_for(&state, &profile_id)?;
+    transfer_run::run_transfer(client.as_ref(), &request, &resolutions, &env).await
 }
 
 #[tauri::command]

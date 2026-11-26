@@ -1,19 +1,14 @@
-//! S3 object operations used by transfers: full listing, put, get, copy (multipart above the
-//! single-copy limit), batched delete. No Tauri dependency; tested with mocked SDK responses.
-
-use std::path::Path;
+//! S3 object operations used by transfers: full listing, head, empty put, copy (multipart above the
+//! single-copy limit), batched delete. File upload and download live in `multipart_upload` and
+//! `ranged_download`. No Tauri dependency; tested with mocked SDK responses.
 
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::types::{CompletedMultipartUpload, CompletedPart, Delete, ObjectIdentifier};
 use aws_sdk_s3::Client;
-use tokio::io::AsyncWriteExt;
 
 use crate::app_error::AppError;
-use crate::local::describe_io_error;
 use crate::s3::{describe_error_code, map_sdk_error};
 use crate::transfer_plan::delete_batches;
-
-const PARTIAL_SUFFIX: &str = ".s3c-part";
 
 /// CopyObject handles objects up to 5 GiB; larger ones use multipart UploadPartCopy.
 pub const MAX_SINGLE_COPY_BYTES: u64 = 5 * 1024 * 1024 * 1024;
@@ -89,47 +84,6 @@ pub async fn put_empty(client: &Client, bucket: &str, key: &str) -> Result<(), A
         .await
         .map(|_| ())
         .map_err(map_sdk_error)
-}
-
-/// Stream a local file into one PutObject (at most 5 GiB; multipart is step 4).
-pub async fn put_file(client: &Client, bucket: &str, key: &str, path: &Path) -> Result<(), AppError> {
-    let length = tokio::fs::metadata(path).await.map_err(|err| describe_io_error(&err, path))?.len();
-    let body = ByteStream::from_path(path).await.map_err(|err| AppError::Local(format!("{err}: {}", path.display())))?;
-    client
-        .put_object()
-        .bucket(bucket)
-        .key(key)
-        .content_length(i64::try_from(length).unwrap_or(i64::MAX))
-        .body(body)
-        .send()
-        .await
-        .map(|_| ())
-        .map_err(map_sdk_error)
-}
-
-/// Stream an object into a local file: written to a sibling temp file, then renamed into place.
-pub async fn get_to_file(client: &Client, bucket: &str, key: &str, dest: &Path) -> Result<(), AppError> {
-    let mut output = client.get_object().bucket(bucket).key(key).send().await.map_err(map_sdk_error)?;
-    if let Some(parent) = dest.parent() {
-        tokio::fs::create_dir_all(parent).await.map_err(|err| describe_io_error(&err, parent))?;
-    }
-    let mut partial_name = dest.file_name().unwrap_or_default().to_os_string();
-    partial_name.push(PARTIAL_SUFFIX);
-    let partial = dest.with_file_name(partial_name);
-    let written = write_body(&mut output.body, &partial).await;
-    if let Err(err) = written {
-        let _ = tokio::fs::remove_file(&partial).await;
-        return Err(err);
-    }
-    tokio::fs::rename(&partial, dest).await.map_err(|err| describe_io_error(&err, dest))
-}
-
-async fn write_body(body: &mut ByteStream, partial: &Path) -> Result<(), AppError> {
-    let mut file = tokio::fs::File::create(partial).await.map_err(|err| describe_io_error(&err, partial))?;
-    while let Some(chunk) = body.try_next().await.map_err(|err| AppError::S3(format!("download interrupted: {err}")))? {
-        file.write_all(&chunk).await.map_err(|err| describe_io_error(&err, partial))?;
-    }
-    file.flush().await.map_err(|err| describe_io_error(&err, partial))
 }
 
 /// `bucket/key` percent-encoded the way the `x-amz-copy-source` header needs it.
@@ -249,12 +203,10 @@ mod tests {
     use aws_sdk_s3::operation::copy_object::{CopyObjectError, CopyObjectOutput};
     use aws_sdk_s3::operation::create_multipart_upload::CreateMultipartUploadOutput;
     use aws_sdk_s3::operation::delete_objects::DeleteObjectsOutput;
-    use aws_sdk_s3::operation::get_object::GetObjectOutput;
     use aws_sdk_s3::operation::head_object::{HeadObjectError, HeadObjectOutput};
     use aws_sdk_s3::operation::list_objects_v2::ListObjectsV2Output;
     use aws_sdk_s3::operation::put_object::PutObjectOutput;
     use aws_sdk_s3::operation::upload_part_copy::UploadPartCopyOutput;
-    use aws_sdk_s3::primitives::ByteStream;
     use aws_sdk_s3::types::{error::NotFound, CopyPartResult, Error as S3ErrorEntry, Object};
     use aws_smithy_mocks::{mock, mock_client, RuleMode};
 
@@ -385,33 +337,5 @@ mod tests {
         let client = mock_client!(aws_sdk_s3, RuleMode::Sequential, &[&rule]);
         put_empty(&client, "bkt", "p/new/").await.unwrap();
         assert_eq!(rule.num_calls(), 1);
-    }
-
-    #[tokio::test]
-    async fn put_file_streams_a_local_file() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("up.bin");
-        std::fs::write(&path, b"hello").unwrap();
-        let rule = mock!(Client::put_object)
-            .match_requests(|req| req.bucket() == Some("bkt") && req.key() == Some("up.bin") && req.content_length() == Some(5))
-            .then_output(|| PutObjectOutput::builder().build());
-        let client = mock_client!(aws_sdk_s3, RuleMode::Sequential, &[&rule]);
-        put_file(&client, "bkt", "up.bin", &path).await.unwrap();
-        assert_eq!(rule.num_calls(), 1);
-        let missing = put_file(&client, "bkt", "x", &dir.path().join("nope")).await.unwrap_err();
-        assert!(matches!(missing, AppError::Local(_)), "{missing}");
-    }
-
-    #[tokio::test]
-    async fn get_to_file_writes_the_body_and_leaves_no_temp_file() {
-        let dir = tempfile::tempdir().unwrap();
-        let dest = dir.path().join("sub").join("down.txt");
-        let rule = mock!(Client::get_object)
-            .match_requests(|req| req.key() == Some("down.txt"))
-            .then_output(|| GetObjectOutput::builder().body(ByteStream::from_static(b"payload")).build());
-        let client = mock_client!(aws_sdk_s3, RuleMode::Sequential, &[&rule]);
-        get_to_file(&client, "bkt", "down.txt", &dest).await.unwrap();
-        assert_eq!(std::fs::read(&dest).unwrap(), b"payload");
-        assert_eq!(std::fs::read_dir(dest.parent().unwrap()).unwrap().count(), 1);
     }
 }

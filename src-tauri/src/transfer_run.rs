@@ -12,11 +12,11 @@ use serde::Serialize;
 use crate::app_error::AppError;
 use crate::local::describe_io_error;
 use crate::local_ops::{self, TrashBin};
-use crate::s3_ops;
+use crate::{multipart_upload, ranged_download, s3_ops};
+use crate::transfer_control::TransferEnv;
 use crate::transfer_plan::{
-    apply_resolutions, build_plan, check_destination, summarize, too_large_message, ConflictPolicy, ExistingInfo, Found,
+    apply_resolutions, build_plan, check_destination, summarize, ConflictPolicy, ExistingInfo, Found,
     ItemFailure, ItemRef, Location, Mode, PlanItem, PlanSummary, Resolutions, TopItem, TransferRequest,
-    MAX_SINGLE_OBJECT_BYTES,
 };
 
 #[derive(Debug, Default, Serialize, PartialEq)]
@@ -184,6 +184,7 @@ pub async fn run_transfer(
     client: Option<&Client>,
     request: &TransferRequest,
     resolutions: &Resolutions,
+    env: &TransferEnv,
 ) -> Result<RunReport, AppError> {
     let (plan, details) = prepare(client, request).await?;
     let existing: HashSet<ItemRef> = details.keys().cloned().collect();
@@ -195,7 +196,7 @@ pub async fn run_transfer(
             report.skipped += 1;
             continue;
         }
-        match transfer_one(client, item, request.mode).await {
+        match transfer_one(client, item, request.mode, env).await {
             Ok(removal) => {
                 report.transferred += 1;
                 report.bytes += item.size;
@@ -237,11 +238,11 @@ async fn remove_server_sources(client: Option<&Client>, bucket: &str, keys: &[St
     }
 }
 
-async fn transfer_one(client: Option<&Client>, item: &PlanItem, mode: Mode) -> Result<Removal, String> {
-    copy_item(client, item, mode).await.map_err(|err| err.to_string())
+async fn transfer_one(client: Option<&Client>, item: &PlanItem, mode: Mode, env: &TransferEnv) -> Result<Removal, String> {
+    copy_item(client, item, mode, env).await.map_err(|err| err.to_string())
 }
 
-async fn copy_item(client: Option<&Client>, item: &PlanItem, mode: Mode) -> Result<Removal, AppError> {
+async fn copy_item(client: Option<&Client>, item: &PlanItem, mode: Mode, env: &TransferEnv) -> Result<Removal, AppError> {
     if item.is_dir {
         match (&item.src, &item.dst) {
             (ItemRef::Object { bucket: from_bucket, key: from_key }, ItemRef::Object { bucket, key }) => {
@@ -255,11 +256,6 @@ async fn copy_item(client: Option<&Client>, item: &PlanItem, mode: Mode) -> Resu
             _ => Removal::Nothing,
         });
     }
-    if matches!((&item.src, &item.dst), (ItemRef::Local(_), ItemRef::Object { .. }) | (ItemRef::Object { .. }, ItemRef::Local(_)))
-        && item.size > MAX_SINGLE_OBJECT_BYTES
-    {
-        return Err(AppError::Local(too_large_message(item.size)));
-    }
     match (&item.src, &item.dst) {
         (ItemRef::Local(from), ItemRef::Local(to)) => {
             if let Some(parent) = to.parent() {
@@ -270,8 +266,12 @@ async fn copy_item(client: Option<&Client>, item: &PlanItem, mode: Mode) -> Resu
             }
             tokio::fs::copy(from, to).await.map_err(|err| describe_io_error(&err, from))?;
         }
-        (ItemRef::Local(from), ItemRef::Object { bucket, key }) => s3_ops::put_file(require_client(client)?, bucket, key, from).await?,
-        (ItemRef::Object { bucket, key }, ItemRef::Local(to)) => s3_ops::get_to_file(require_client(client)?, bucket, key, to).await?,
+        (ItemRef::Local(from), ItemRef::Object { bucket, key }) => {
+            multipart_upload::upload_file(require_client(client)?, env, bucket, key, from).await.map_err(AppError::from)?
+        }
+        (ItemRef::Object { bucket, key }, ItemRef::Local(to)) => {
+            ranged_download::download_file(require_client(client)?, env, bucket, key, to).await.map_err(AppError::from)?
+        }
         (ItemRef::Object { bucket: from_bucket, key: from_key }, ItemRef::Object { bucket, key }) => {
             s3_ops::copy_object(require_client(client)?, from_bucket, from_key, bucket, key, item.size).await?
         }
@@ -367,7 +367,7 @@ pub async fn rename_item(
             }
             let renamed = TopItem { dest_name: Some(new_name.to_string()), ..item.clone() };
             let request = TransferRequest { source: location.clone(), dest: location.clone(), items: vec![renamed], mode: Mode::Move };
-            run_transfer(Some(client), &request, &Resolutions::all(ConflictPolicy::Overwrite)).await
+            run_transfer(Some(client), &request, &Resolutions::all(ConflictPolicy::Overwrite), &TransferEnv::default()).await
         }
     }
 }
@@ -388,6 +388,11 @@ mod tests {
     use aws_sdk_s3::types::{error::NotFound, Object};
     use aws_smithy_mocks::{mock, mock_client, MockResponse, Rule, RuleMode};
 
+
+    /// The engine with the AWS CLI defaults, as a profile with no transfer settings gets.
+    async fn run_transfer(client: Option<&Client>, request: &TransferRequest, resolutions: &Resolutions) -> Result<RunReport, AppError> {
+        super::run_transfer(client, request, resolutions, &TransferEnv::default()).await
+    }
 
     fn local(path: &std::path::Path) -> Location {
         Location::Local { path: path.to_string_lossy().into_owned() }
@@ -631,22 +636,94 @@ mod tests {
         assert_eq!((put.num_calls(), report.failed.len()), (1, 0));
     }
 
+    /// Engine settings with a small threshold and the S3 minimum part size, so a few MiB go multipart.
+    fn small_multipart_env() -> TransferEnv {
+        let mut env = TransferEnv::new(crate::transfer_settings::EffectiveTransferSettings {
+            multipart_threshold: 5 << 20,
+            multipart_chunksize: 5 << 20,
+            max_concurrent_requests: 3,
+            addressing_style: crate::transfer_settings::AddressingStyle::Path,
+        });
+        env.retry.base_delay = std::time::Duration::ZERO;
+        env
+    }
+
     #[tokio::test]
-    async fn upload_above_5_gib_fails_that_item_with_a_clear_message_and_sends_nothing() {
+    async fn a_file_above_the_threshold_uploads_as_multipart_and_a_move_verifies_then_removes_the_source() {
+        use aws_sdk_s3::operation::complete_multipart_upload::CompleteMultipartUploadOutput;
+        use aws_sdk_s3::operation::create_multipart_upload::CreateMultipartUploadOutput;
+        use aws_sdk_s3::operation::upload_part::UploadPartOutput;
         let root = tempfile::tempdir().unwrap();
-        let huge = fs::File::create(root.path().join("huge.bin")).unwrap();
-        huge.set_len(MAX_SINGLE_OBJECT_BYTES + 1).unwrap(); // sparse: no real data written
+        fs::File::create(root.path().join("big.bin")).unwrap().set_len(11 << 20).unwrap(); // sparse
+        let verify = mock!(Client::head_object)
+            .match_requests(|req| req.key() == Some("big.bin"))
+            .sequence()
+            .error(|| HeadObjectError::NotFound(NotFound::builder().build())) // destination probe
+            .output(|| HeadObjectOutput::builder().content_length(11 << 20).build()) // verify after the upload
+            .build();
+        let put = mock!(Client::put_object).then_output(|| PutObjectOutput::builder().build());
+        let create = mock!(Client::create_multipart_upload).then_output(|| CreateMultipartUploadOutput::builder().upload_id("u1").build());
+        let part = mock!(Client::upload_part).then_compute_output(|req| UploadPartOutput::builder().e_tag(format!("e{}", req.part_number().unwrap_or(0))).build());
+        let complete = mock!(Client::complete_multipart_upload).then_output(|| CompleteMultipartUploadOutput::builder().build());
+        let client = mock_client!(aws_sdk_s3, RuleMode::MatchAny, &[&verify, &put, &create, &part, &complete]);
+        let req = request(local(root.path()), bucket("bkt", ""), vec![top("big.bin", false)], Mode::Move);
+        let report = super::run_transfer(Some(&client), &req, &Resolutions::all(ConflictPolicy::Overwrite), &small_multipart_env()).await.unwrap();
+        assert!(report.failed.is_empty(), "{}", failure_text(&report));
+        assert_eq!((put.num_calls(), create.num_calls(), part.num_calls(), complete.num_calls()), (0, 1, 3, 1));
+        assert_eq!((report.transferred, report.bytes, report.sources_removed), (1, 11 << 20, 1));
+        assert!(!root.path().join("big.bin").exists());
+    }
+
+    #[tokio::test]
+    async fn a_file_above_5_gib_is_planned_without_any_limit_warning() {
+        let root = tempfile::tempdir().unwrap();
+        fs::File::create(root.path().join("huge.bin")).unwrap().set_len((5 << 30) + 1).unwrap(); // sparse
+        let client = mock_client!(aws_sdk_s3, RuleMode::MatchAny, &[&head_table(&[])]);
+        let req = request(local(root.path()), bucket("bkt", ""), vec![top("huge.bin", false)], Mode::Copy);
+        let summary = plan_transfer(Some(&client), &req).await.unwrap();
+        assert_eq!((summary.files, summary.total_bytes), (1, (5 << 30) + 1));
+        let json = serde_json::to_value(&summary).unwrap();
+        assert!(json.get("too_large_count").is_none(), "{json}");
+    }
+
+    #[tokio::test]
+    async fn an_upload_above_5_tib_fails_that_item_with_a_clear_message_and_keeps_the_source() {
+        let root = tempfile::tempdir().unwrap();
+        fs::File::create(root.path().join("huge.bin")).unwrap().set_len((5 << 40) + 1).unwrap(); // sparse
         let head = head_table(&[]);
         let put = mock!(Client::put_object).then_output(|| PutObjectOutput::builder().build());
         let client = mock_client!(aws_sdk_s3, RuleMode::MatchAny, &[&head, &put]);
         let req = request(local(root.path()), bucket("bkt", ""), vec![top("huge.bin", false)], Mode::Move);
-        let summary = plan_transfer(Some(&client), &req).await.unwrap();
-        assert_eq!(summary.too_large_count, 1);
         let report = run_transfer(Some(&client), &req, &Resolutions::all(ConflictPolicy::Overwrite)).await.unwrap();
         assert_eq!(put.num_calls(), 0);
         assert_eq!(report.failed.len(), 1);
-        assert!(report.failed[0].message.contains("5 GiB") && report.failed[0].message.contains("step 4"), "{}", failure_text(&report));
+        assert!(report.failed[0].message.contains("5 TiB"), "{}", failure_text(&report));
         assert!(root.path().join("huge.bin").exists(), "failed item keeps its source");
+    }
+
+    #[tokio::test]
+    async fn a_download_of_several_ranges_lands_complete_through_the_engine() {
+        let root = tempfile::tempdir().unwrap();
+        let size: usize = 12 << 20;
+        let head = mock!(Client::head_object)
+            .match_requests(|req| req.key() == Some("big.bin"))
+            .then_output(move || HeadObjectOutput::builder().content_length(size as i64).e_tag("\"e\"").build());
+        let list = list_table(&[]);
+        let gets = Arc::new(Mutex::new(Vec::new()));
+        let seen = gets.clone();
+        let get = mock!(Client::get_object).then_compute_output(move |req| {
+            let range = req.range().unwrap_or_default().to_string();
+            let (first, last) = range.trim_start_matches("bytes=").split_once('-').map(|(a, b)| (a.parse::<usize>().unwrap(), b.parse::<usize>().unwrap())).unwrap();
+            seen.lock().unwrap().push(range);
+            GetObjectOutput::builder().body(ByteStream::from(vec![7u8; last - first + 1])).build()
+        });
+        let client = mock_client!(aws_sdk_s3, RuleMode::MatchAny, &[&head, &list, &get]);
+        let req = request(bucket("bkt", ""), local(root.path()), vec![top("big.bin", false)], Mode::Copy);
+        let report = super::run_transfer(Some(&client), &req, &Resolutions::all(ConflictPolicy::Overwrite), &small_multipart_env()).await.unwrap();
+        assert!(report.failed.is_empty(), "{}", failure_text(&report));
+        assert_eq!(fs::metadata(root.path().join("big.bin")).unwrap().len(), size as u64);
+        assert_eq!(gets.lock().unwrap().len(), 3, "12 MiB in 5 MiB ranges");
+        assert_eq!(fs::read_dir(root.path()).unwrap().count(), 1, "no .part or sidecar left");
     }
 
     #[tokio::test]
@@ -693,8 +770,9 @@ mod tests {
     async fn download_expands_a_folder_with_its_marker_and_nested_keys() {
         let root = tempfile::tempdir().unwrap();
         let list = list_table(&[("bkt/logs/d/", &[("logs/d/", 0), ("logs/d/a.txt", 5), ("logs/d/sub/b.txt", 5)])]);
+        let head = head_table(&[("bkt/logs/d/a.txt", 5), ("bkt/logs/d/sub/b.txt", 5)]);
         let get = mock!(Client::get_object).then_compute_output(|_| GetObjectOutput::builder().body(ByteStream::from_static(b"hello")).build());
-        let client = mock_client!(aws_sdk_s3, RuleMode::MatchAny, &[&list, &get]);
+        let client = mock_client!(aws_sdk_s3, RuleMode::MatchAny, &[&list, &head, &get]);
         let req = request(bucket("bkt", "logs/"), local(root.path()), vec![top("d", true)], Mode::Copy);
         let summary = plan_transfer(Some(&client), &req).await.unwrap();
         assert_eq!((summary.files, summary.dirs, summary.total_bytes), (2, 1, 10));
