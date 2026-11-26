@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Panel sorting (step 3e)</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:820px;margin:32px auto;padding:0 16px;color:#1b1d24}h2{border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:28px}code{background:#f2f3f6;padding:1px 4px;border-radius:3px}</style></head><body>
+<h1>Sorting in the panels (step 3e)</h1>
+<h2>Specs</h2>
+<ul><li>Click a column header (Name, Ext, Size, Date) to sort a panel, click again to reverse; arrow and <code>aria-sort</code> show the active column; headers are keyboard-focusable buttons.</li>
+<li>Per-panel sort in the Zustand slice, default Name ascending, survives view and source switches, not persisted across restarts.</li>
+<li>Rules: <code>..</code> first; folders above files, sorted by name only; Name and Ext case-insensitive with natural numbers; ties by Name ascending; cursor follows its item by name.</li>
+<li>Server listings are paginated: while pages remain, footer hint "sorted over loaded items" and a "Load all" action capped at 20,000 items. No Rust change.</li>
+<li>Column fix: <code>&lt;DIR&gt;</code> moves to the Ext column; folder Size cell is empty.</li>
+<li>Empty-area context menu gets Sort by Name / Ext / Size / Date and Reverse order, calling the same store actions.</li></ul>
+<h2>Actions</h2>
+<ul><li>New <code>src/browse/sort.ts</code> (comparator <code>sortEntries</code>, <code>nextSort</code>, types) with <code>sort.test.ts</code>.</li>
+<li><code>browse_store.ts</code>: <code>sort</code> in the panel slice, actions <code>sortBy</code> and <code>reverseSort</code>, <code>setSource</code> keeps the sort, <code>setListing</code> sorts with it, cursor follows by name after a re-sort and after an appended page. The old inline sort was removed.</li>
+<li><code>panel_loader.ts</code>: <code>loadAll(side, cap = 20000)</code> over <code>loadMore</code>; stops on error, no progress, or the cap (message through the panel error line).</li>
+<li><code>file_panel.tsx</code> and <code>styles.css</code>: header buttons inside <code>columnheader</code> cells, <code>&lt;DIR&gt;</code> in Ext, footer hint with a Load all button (server panels with a next token only).</li>
+<li><code>context_menu.ts</code> and <code>context_menu_view.tsx</code>: sort entries in the empty-area list (optional <code>checked</code>, rendered as <code>menuitemradio</code>); keyboard selectors accept <code>menuitem*</code>.</li>
+<li>Tests: comparator, store (per panel, source switch, cursor), loadAll (all pages, cap, error), panel (header cycle, aria-sort, <code>&lt;DIR&gt;</code>, hint), context menu. Red run first, then green (170 tests); <code>npm run build</code> passes.</li>
+<li>Visual check: Chromium mock screenshots (Vite on a spare port, in-page Tauri mock, fake names) in light and dark.</li></ul>
+<h2>Tradeoffs</h2>
+<ul><li>The store keeps entries sorted (sorted once per change) instead of sorting inside <code>buildRows</code> on every render: a 20,000-row panel re-renders on scroll and would re-sort each time. <code>buildRows</code> only prepends <code>..</code>.</li>
+<li>Sort by Size, Date or natural Name on a server panel covers loaded pages only (S3 lists in key order); hence the hint and the capped Load all instead of server-side sorting.</li>
+<li>The cap message reuses the panel error line rather than a new notice field: smaller change, but it shows in alert style and hides the hint until the next listing.</li>
+<li><code>loadAll</code> stops when a page adds no items, so an empty page that still has a token ends the loop; the user can press Load all again.</li>
+<li>Intl.Collator (numeric, base sensitivity) instead of a hand-written natural compare; order of non-ASCII names follows the system locale.</li></ul>
+</body></html>

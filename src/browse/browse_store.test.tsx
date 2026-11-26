@@ -139,3 +139,62 @@ describe("view lifecycle", () => {
     act(() => root.unmount());
   });
 });
+
+describe("per-panel sort", () => {
+  const big = (name: string, size: number): PanelEntry => ({ name, isDir: false, size, modified: 1 });
+  const rowNames = () => store().left.entries.map((entry) => entry.name);
+
+  it("each panel keeps its own sort and defaults to Name ascending", () => {
+    expect(store().left.sort).toEqual({ key: "name", dir: "asc" });
+    store().sortBy("left", "size");
+    expect(store().left.sort).toEqual({ key: "size", dir: "asc" });
+    expect(store().right.sort).toEqual({ key: "name", dir: "asc" });
+  });
+
+  it("sortBy re-sorts, a second call on the same key reverses, reverseSort flips the direction", () => {
+    store().setListing("left", { path: "/", entries: [big("a", 5), big("b", 1), big("c", 9)], nextToken: null });
+    store().sortBy("left", "size");
+    expect(rowNames()).toEqual(["b", "a", "c"]);
+    store().sortBy("left", "size");
+    expect(rowNames()).toEqual(["c", "a", "b"]);
+    store().reverseSort("left");
+    expect(store().left.sort).toEqual({ key: "size", dir: "asc" });
+    expect(rowNames()).toEqual(["b", "a", "c"]);
+  });
+
+  it("the sort survives a source switch and a new listing", () => {
+    store().setSource("left", { kind: "local" });
+    store().sortBy("left", "date");
+    store().setSource("left", { kind: "bucket", bucket: "alpha" });
+    expect(store().left.sort).toEqual({ key: "date", dir: "asc" });
+    store().setListing("left", { path: "", entries: [big("b", 1), big("a", 2)], nextToken: null });
+    expect(store().left.sort.key).toBe("date");
+  });
+
+  it("the cursor stays on the same item after a re-sort", () => {
+    store().setSource("left", { kind: "local" });
+    store().setListing("left", { path: "/", entries: [big("a", 5), big("b", 1), big("c", 9)], nextToken: null });
+    store().setCursor("left", 1); // b
+    store().sortBy("left", "size");
+    expect(rowNames()).toEqual(["b", "a", "c"]);
+    expect(store().left.cursor).toBe(0);
+    store().sortBy("left", "size"); // desc: c a b
+    expect(store().left.cursor).toBe(2);
+  });
+
+  it("the cursor stays on the same item after a page load that inserts rows above it", () => {
+    store().setSource("right", { kind: "bucket", bucket: "alpha" });
+    store().setListing("right", { path: "", entries: [big("m", 1), big("z", 1)], nextToken: "t" });
+    store().setCursor("right", 1); // z
+    store().setListing("right", { path: "", entries: [big("a", 1), big("b", 1)], nextToken: null }, { append: true });
+    expect(store().right.entries.map((entry) => entry.name)).toEqual(["a", "b", "m", "z"]);
+    expect(store().right.cursor).toBe(3);
+  });
+
+  it("the cursor on the .. row stays there", () => {
+    store().setSource("left", { kind: "local" });
+    store().setListing("left", { path: "/a", entries: [big("a", 5), big("b", 1)], nextToken: null });
+    store().sortBy("left", "size");
+    expect(store().left.cursor).toBe(0);
+  });
+});

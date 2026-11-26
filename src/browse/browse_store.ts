@@ -4,6 +4,7 @@
 
 import { create } from "zustand";
 import { buildRows } from "./navigation";
+import { DEFAULT_SORT, nextSort, sortEntries, type SortKey, type SortState } from "./sort";
 
 export type Side = "left" | "right";
 export type PanelSource = { kind: "local" } | { kind: "bucket"; bucket: string };
@@ -22,6 +23,8 @@ export type PanelState = {
   scrollTop: number;
   loading: boolean;
   error: string;
+  /** Per panel; survives source switches, not an app restart. */
+  sort: SortState;
 };
 
 type Listing = { path: string; entries: PanelEntry[]; nextToken: string | null };
@@ -35,6 +38,9 @@ export type BrowseState = {
   buckets: string[];
   setSource: (side: Side, source: PanelSource | null) => void;
   setListing: (side: Side, listing: Listing, options?: ListingOptions) => void;
+  /** Header click and context menu: a new key sorts ascending, the active key reverses. */
+  sortBy: (side: Side, key: SortKey) => void;
+  reverseSort: (side: Side) => void;
   setCursor: (side: Side, cursor: number) => void;
   toggleMark: (side: Side, name: string) => void;
   clearMarks: (side: Side) => void;
@@ -57,6 +63,7 @@ export const emptyPanel = (): PanelState => ({
   scrollTop: 0,
   loading: false,
   error: "",
+  sort: DEFAULT_SORT,
 });
 
 export const initialBrowseState = () => ({
@@ -69,16 +76,19 @@ export const initialBrowseState = () => ({
 
 const SIDES: Side[] = ["left", "right"];
 
-function sortEntries(entries: PanelEntry[]): PanelEntry[] {
-  return [...entries].sort(
-    (first, second) =>
-      Number(second.isDir) - Number(first.isDir) ||
-      first.name.toLowerCase().localeCompare(second.name.toLowerCase()) ||
-      first.name.localeCompare(second.name),
-  );
+const rowCount = (panel: PanelState) => buildRows(panel.source, panel.path, panel.entries).length;
+
+/** Index of the item the cursor was on in `before`, found by name in `after` (rows change when the order or the entries do). */
+function cursorAfter(before: PanelState, after: PanelState): number {
+  const name = buildRows(before.source, before.path, before.entries)[before.cursor]?.name;
+  const found = name === undefined ? -1 : buildRows(after.source, after.path, after.entries).findIndex((row) => row.name === name);
+  return found < 0 ? before.cursor : found;
 }
 
-const rowCount = (panel: PanelState) => buildRows(panel.source, panel.path, panel.entries).length;
+function resort(panel: PanelState, sort: SortState): PanelState {
+  const next = { ...panel, sort, entries: sortEntries(panel.entries, sort) };
+  return { ...next, cursor: cursorAfter(panel, next) };
+}
 
 /** Drop everything that belongs to the S3 side; the Local panel keeps its state. */
 function withoutBucketPanels(state: BrowseState): Partial<BrowseState> {
@@ -95,16 +105,18 @@ export const useBrowseStore = create<BrowseState>((set) => {
 
   return {
     ...initialBrowseState(),
-    setSource: (side, source) => patchPanel(side, () => ({ ...emptyPanel(), source })),
+    setSource: (side, source) => patchPanel(side, (panel) => ({ ...emptyPanel(), source, sort: panel.sort })),
     setListing: (side, listing, options = {}) =>
       patchPanel(side, (panel) => {
-        const entries = sortEntries(options.append ? [...panel.entries, ...listing.entries] : listing.entries);
+        const entries = sortEntries(options.append ? [...panel.entries, ...listing.entries] : listing.entries, panel.sort);
         const next = { ...panel, entries, path: listing.path, nextToken: listing.nextToken, loading: false, error: "" };
-        if (options.append) return next;
+        if (options.append) return { ...next, cursor: cursorAfter(panel, next) };
         const rows = buildRows(panel.source, listing.path, entries);
         const focused = options.focusName === undefined ? -1 : rows.findIndex((row) => row.name === options.focusName);
         return { ...next, cursor: Math.max(focused, 0), marked: {}, scrollTop: 0 };
       }),
+    sortBy: (side, key) => patchPanel(side, (panel) => resort(panel, nextSort(panel.sort, key))),
+    reverseSort: (side) => patchPanel(side, (panel) => resort(panel, { ...panel.sort, dir: panel.sort.dir === "asc" ? "desc" : "asc" })),
     setCursor: (side, cursor) =>
       patchPanel(side, (panel) => {
         const clamped = Math.max(0, Math.min(cursor, rowCount(panel) - 1));

@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Added
+- Sorting in the panels: click the Name, Ext, Size or Date header (real buttons with `aria-sort` and an arrow) to sort, click again to reverse; the empty-area context menu has Sort by Name / Ext / Size / Date and Reverse order calling the same store actions. Each panel keeps its own sort (default Name ascending, kept across view and source switches, not across restarts). `..` is first, folders stay above files and sort by name only, Name and Ext are case-insensitive with natural number order, ties fall back to Name ascending (`src/browse/sort.ts`).
+- Server panels with more pages show "sorted over loaded items" and a "Load all" button in the footer that loads the remaining pages through `loadMore`, stopping at 20,000 items with a message. Local panels never show it.
+
+### Changed
+- The `<DIR>` marker moved from the Size column to the Ext column; the Size cell of a folder is empty.
 - Right-click context menu on panel rows and empty panel space (also Shift+F10 / ContextMenu key): Open, Upload/Download/Copy to other panel, Move to other panel, Rename, Delete, New folder, with shortcut hints. Handlers call the same flows as the F-keys. Vitest no longer scans `.claude/` worktrees.
 - Profile validation on add and edit. Rust (`profile_rules.rs`) is authoritative and returns per-field errors; the form mirrors the rules (`src/profile/validate_profile.ts`) for inline errors and a disabled Save while invalid. Rules: name required, max 64, unique case-insensitively; endpoint is an http(s) URL with a host, no user info, query, fragment or path, port 1..65535, normalized (trimmed, no trailing slash); access key without whitespace or control characters; secret required on create (blank on edit keeps the stored one), no control characters; region optional (default `us-east-1`), `[a-z0-9-]` up to 32.
 - A non-blocking warning for `http://` endpoints (keys travel unencrypted) and a "Test connection" button after a successful save. Saving never checks connectivity.

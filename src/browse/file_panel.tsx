@@ -3,7 +3,8 @@ import { DiskIcon, ServerIcon } from "../icons";
 import { EntryIcon } from "../icons";
 import { useBrowseStore, type PanelSource, type Side } from "./browse_store";
 import { buildRows, formatDate, formatSize, splitName } from "./navigation";
-import { goUp, loadMore, openRowAt, openSource } from "./panel_loader";
+import { goUp, loadAll, loadMore, openRowAt, openSource } from "./panel_loader";
+import { type SortKey } from "./sort";
 import { openEmptyMenu, openMenuAtCursor, openRowMenu } from "./context_menu";
 
 const ROW_HEIGHT = 22;
@@ -11,6 +12,12 @@ const OVERSCAN_ROWS = 8;
 const LOAD_MORE_DISTANCE_ROWS = 40;
 const DEFAULT_VIEWPORT_HEIGHT = 400;
 
+const HEADERS: { key: SortKey; label: string; className?: string }[] = [
+  { key: "name", label: "Name" },
+  { key: "ext", label: "Ext" },
+  { key: "size", label: "Size", className: "num" },
+  { key: "date", label: "Date", className: "date" },
+];
 const sourceValue = (source: PanelSource | null) =>
   !source ? "" : source.kind === "local" ? "local" : `bucket:${source.bucket}`;
 
@@ -23,7 +30,7 @@ export function FilePanel({ side }: { side: Side }) {
   const panel = useBrowseStore((state) => state[side]);
   const isActive = useBrowseStore((state) => state.active === side);
   const buckets = useBrowseStore((state) => state.buckets);
-  const { setCursor, toggleMark, setActive, setScrollTop } = useBrowseStore.getState();
+  const { setCursor, toggleMark, setActive, setScrollTop, sortBy } = useBrowseStore.getState();
 
   const panelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -134,10 +141,17 @@ export function FilePanel({ side }: { side: Side }) {
         <span className="path" title={panel.path}>{panel.source?.kind === "bucket" ? `/${panel.path}` : panel.path}</span>
       </div>
       <div className="list-head row">
-        <span>Name</span>
-        <span>Ext</span>
-        <span className="num">Size</span>
-        <span className="date">Date</span>
+        {HEADERS.map(({ key, label, className }) => {
+          const active = panel.sort.key === key;
+          return (
+            <span key={key} className={className} role="columnheader" aria-sort={active ? (panel.sort.dir === "asc" ? "ascending" : "descending") : "none"}>
+              <button type="button" className="sort-btn" onClick={() => sortBy(side, key)}>
+                {label}
+                {active && <span className="sort-arrow" aria-hidden="true">{panel.sort.dir === "asc" ? "▲" : "▼"}</span>}
+              </button>
+            </span>
+          );
+        })}
       </div>
       <div
         className="list"
@@ -175,8 +189,8 @@ export function FilePanel({ side }: { side: Side }) {
                   <EntryIcon isDir={!!row.isDir} isUp={!!row.isUp} ext={ext} />
                   <span className="label">{row.isUp ? ".." : base}</span>
                 </span>
-                <span>{ext}</span>
-                <span className="num">{row.isUp ? "" : row.isDir ? "<DIR>" : formatSize(row.size)}</span>
+                <span>{row.isDir && !row.isUp ? "<DIR>" : ext}</span>
+                <span className="num">{row.isUp || row.isDir ? "" : formatSize(row.size)}</span>
                 <span className="date">{row.isUp || row.isDir ? "" : formatDate(row.modified)}</span>
               </div>
             );
@@ -191,6 +205,12 @@ export function FilePanel({ side }: { side: Side }) {
             : markedNames.length
               ? `${formatSize(markedSize)} in ${markedNames.length} marked`
               : `${panel.entries.length} item(s)${panel.nextToken ? " (more below)" : ""}`}
+        {panel.source?.kind === "bucket" && panel.nextToken && !panel.error && (
+          <span className="sort-hint">
+            sorted over loaded items
+            <button type="button" disabled={panel.loading} onClick={() => void loadAll(side)}>Load all</button>
+          </span>
+        )}
       </div>
     </div>
   );

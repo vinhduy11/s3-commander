@@ -19,7 +19,7 @@ export function ContextMenu() {
     setPosition(
       clampMenuPosition(menu.x, menu.y, { width: box?.width ?? 0, height: box?.height ?? 0 }, { width: window.innerWidth, height: window.innerHeight }),
     );
-    const first = ref.current?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])');
+    const first = ref.current?.querySelector<HTMLElement>('[role^="menuitem"]:not([aria-disabled="true"])');
     (first ?? ref.current)?.focus({ preventScroll: true });
   }, [menu, items.length]);
 
@@ -57,7 +57,7 @@ export function ContextMenu() {
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     event.stopPropagation(); // F-keys and panel keys must not fire behind the menu
-    const enabled = Array.from(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])') ?? []);
+    const enabled = Array.from(ref.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]:not([aria-disabled="true"])') ?? []);
     const at = enabled.indexOf(document.activeElement as HTMLElement);
     const move = (to: number) => enabled[(to + enabled.length) % enabled.length]?.focus();
     if (event.key === "ArrowDown") move(at + 1);
@@ -89,7 +89,8 @@ export function ContextMenu() {
         <button
           key={item.id}
           type="button"
-          role="menuitem"
+          role={item.checked === undefined ? "menuitem" : "menuitemradio"}
+          aria-checked={item.checked}
           className="ctx-item"
           data-id={item.id}
           tabIndex={-1}

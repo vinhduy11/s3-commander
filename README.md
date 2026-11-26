@@ -44,9 +44,10 @@ npm test               # vitest: panel store, navigation helpers, operation targ
 │   └── browse/
 │       ├── browse_store.ts        # Zustand store: one slice per panel, S3 reset on profile switch / lock
 │       ├── navigation.ts          # pure path, row and formatting helpers
+│       ├── sort.ts                # pure comparator (name, ext, size, date; folders first; natural order) and header-click cycle
 │       ├── browse_api.ts          # typed wrappers over the Tauri commands
-│       ├── panel_loader.ts        # loads listings into the store, drops stale responses
-│       ├── file_panel.tsx         # one panel: source selector, virtualised list, keyboard
+│       ├── panel_loader.ts        # loads listings into the store, drops stale responses; loadAll (capped) for server panels
+│       ├── file_panel.tsx         # one panel: source selector, sortable column headers, virtualised list, keyboard, footer hint
 │       ├── context_menu.ts        # right-click menu: state, data-driven item list, selection rules, position clamp
 │       ├── context_menu_view.tsx  # menu surface (role=menu), keyboard, close rules
 │       └── *.test.ts(x)           # vitest tests

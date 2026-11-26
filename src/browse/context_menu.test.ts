@@ -63,7 +63,7 @@ describe("selection on right-click", () => {
     openEmptyMenu("left", 5, 6);
     expect(browse().left.marked).toEqual({ "a.txt": true });
     expect(browse().active).toBe("left");
-    expect(ids(buildMenuItems("left", "empty"))).toEqual(["new-folder"]);
+    expect(ids(buildMenuItems("left", "empty"))).toEqual(["sort-name", "sort-ext", "sort-size", "sort-date", "sort-reverse", "new-folder"]);
   });
 
   it("is ignored while a dialog is open", () => {
@@ -187,5 +187,28 @@ describe("clampMenuPosition", () => {
   });
   it("never goes negative when the menu is larger than the window", () => {
     expect(clampMenuPosition(5, 5, { width: 900, height: 700 }, win)).toEqual({ x: 4, y: 4 });
+  });
+});
+
+describe("sort entries in the empty-area menu", () => {
+  it("marks the current sort and calls the same store actions as the header", () => {
+    const sortBy = vi.spyOn(browse(), "sortBy");
+    const reverse = vi.spyOn(browse(), "reverseSort");
+    const items = byId("left", "empty");
+    expect(items["sort-name"].checked).toBe(true);
+    expect(items["sort-size"].checked).toBe(false);
+    expect(items["sort-reverse"].checked).toBeUndefined();
+    items["sort-size"].run();
+    expect(browse().left.sort).toEqual({ key: "size", dir: "asc" });
+    expect(byId("left", "empty")["sort-size"].checked).toBe(true);
+    items["sort-reverse"].run();
+    expect(browse().left.sort).toEqual({ key: "size", dir: "desc" });
+    expect(sortBy).toHaveBeenCalledWith("left", "size");
+    expect(reverse).toHaveBeenCalledWith("left");
+    expect(browse().right.sort.key).toBe("name");
+  });
+
+  it("row menus do not carry sort entries", () => {
+    expect(ids(buildMenuItems("left", "row")).some((id) => id.startsWith("sort-"))).toBe(false);
   });
 });

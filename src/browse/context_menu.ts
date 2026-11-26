@@ -10,9 +10,11 @@ import { cursorTarget, panelLocation, selectTargets } from "../ops/ops_targets";
 import { useBrowseStore, type Side } from "./browse_store";
 import { buildRows } from "./navigation";
 import { openRowAt } from "./panel_loader";
+import { SORT_KEYS, type SortKey } from "./sort";
 
 export type MenuKind = "row" | "empty";
-export type MenuItem = { id: string; label: string; shortcut?: string; enabled: boolean; run: () => void };
+/** `checked` (radio item) is set only on the sort entries: true for the active one. */
+export type MenuItem = { id: string; label: string; shortcut?: string; enabled: boolean; checked?: boolean; run: () => void };
 type OpenMenu = { side: Side; kind: MenuKind; x: number; y: number };
 
 export const useContextMenu = create<{ menu: OpenMenu | null }>(() => ({ menu: null }));
@@ -92,6 +94,24 @@ function rowItems(side: Side): MenuItem[] {
   return items;
 }
 
+const SORT_LABELS: Record<SortKey, string> = { name: "Name", ext: "Ext", size: "Size", date: "Date" };
+
+/** Same store actions as the column headers; the active key shows its direction. */
+function sortItems(side: Side): MenuItem[] {
+  const { sort } = browse()[side];
+  return [
+    ...SORT_KEYS.map((key) => ({
+      id: `sort-${key}`,
+      label: `Sort by ${SORT_LABELS[key]}`,
+      shortcut: sort.key === key ? (sort.dir === "asc" ? "▲" : "▼") : undefined,
+      enabled: true,
+      checked: sort.key === key,
+      run: () => browse().sortBy(side, key),
+    })),
+    { id: "sort-reverse", label: "Reverse order", enabled: true, run: () => browse().reverseSort(side) },
+  ];
+}
+
 export function buildMenuItems(side: Side, kind: MenuKind): MenuItem[] {
   const newFolder: MenuItem = {
     id: "new-folder",
@@ -100,5 +120,5 @@ export function buildMenuItems(side: Side, kind: MenuKind): MenuItem[] {
     enabled: panelLocation(browse()[side]) !== null,
     run: () => startNewFolder(side),
   };
-  return kind === "empty" ? [newFolder] : [...rowItems(side), newFolder];
+  return kind === "empty" ? [...sortItems(side), newFolder] : [...rowItems(side), newFolder];
 }

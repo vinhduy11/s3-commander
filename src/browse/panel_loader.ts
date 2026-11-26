@@ -67,6 +67,22 @@ export async function loadMore(side: Side): Promise<void> {
   }
 }
 
+export const LOAD_ALL_CAP = 20_000;
+
+/** Load every remaining page through loadMore, stopping at `cap` items (the panel then says so). */
+export async function loadAll(side: Side, cap = LOAD_ALL_CAP): Promise<void> {
+  const state = () => useBrowseStore.getState()[side];
+  while (state().nextToken) {
+    if (state().entries.length >= cap) {
+      useBrowseStore.getState().setError(side, `Stopped loading at ${cap} items; scroll down to load more.`);
+      return;
+    }
+    const before = state().entries.length;
+    await loadMore(side);
+    if (state().error || state().entries.length === before) return; // failed, stale, or another request owns the panel
+  }
+}
+
 export function enterDir(side: Side, name: string): Promise<void> {
   const { source, path } = useBrowseStore.getState()[side];
   return source ? openPath(side, childPath(source, path, name)) : Promise.resolve();

@@ -3,7 +3,7 @@ import { initialBrowseState, useBrowseStore } from "./browse_store";
 
 vi.mock("./browse_api", () => ({ listLocalDir: vi.fn(), listBucketDir: vi.fn() }));
 import { listBucketDir, listLocalDir } from "./browse_api";
-import { openPath, openSource } from "./panel_loader";
+import { loadAll, openPath, openSource } from "./panel_loader";
 
 const store = () => useBrowseStore.getState();
 const deferred = <T>() => {
@@ -87,5 +87,50 @@ describe("panel loading is never left stuck", () => {
     await next;
     expect(store().left.loading).toBe(false);
     expect(store().left.path).toBe("/x");
+  });
+});
+
+describe("loadAll", () => {
+  const page = (from: number, count: number, nextToken: string | null) => ({
+    entries: Array.from({ length: count }, (_, i) => ({ name: `f${String(from + i).padStart(6, "0")}`, isDir: false, size: 1, modified: 1 })),
+    nextToken,
+  });
+
+  async function start() {
+    store().setProfile("p1");
+    store().setSource("left", { kind: "bucket", bucket: "alpha" });
+    vi.mocked(listBucketDir).mockResolvedValueOnce(page(0, 1000, "t1"));
+    await openPath("left", "");
+  }
+
+  it("loads every remaining page", async () => {
+    await start();
+    vi.mocked(listBucketDir).mockResolvedValueOnce(page(1000, 1000, "t2")).mockResolvedValueOnce(page(2000, 5, null));
+    await loadAll("left");
+    expect(store().left.entries).toHaveLength(2005);
+    expect(store().left.nextToken).toBeNull();
+    expect(store().left.error).toBe("");
+  });
+
+  it("stops at the cap with a clear message and keeps the continuation token", async () => {
+    await start();
+    let from = 1000;
+    vi.mocked(listBucketDir).mockImplementation(async () => {
+      const result = page(from, 1000, "more");
+      from += 1000;
+      return result;
+    });
+    await loadAll("left", 3000);
+    expect(store().left.entries).toHaveLength(3000);
+    expect(store().left.nextToken).toBe("more");
+    expect(store().left.error).toMatch(/3000/);
+  });
+
+  it("stops on an error", async () => {
+    await start();
+    vi.mocked(listBucketDir).mockRejectedValueOnce("boom");
+    await loadAll("left");
+    expect(store().left.error).toBe("boom");
+    expect(store().left.entries).toHaveLength(1000);
   });
 });

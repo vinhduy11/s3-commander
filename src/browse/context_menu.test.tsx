@@ -118,7 +118,7 @@ describe("context menu view", () => {
 });
 
 describe("panel wiring", () => {
-  it("right-click on a row opens the menu there and prevents the native menu; right-click on the list's empty area offers only New folder", () => {
+  it("right-click on a row opens the menu there and prevents the native menu; right-click on the list's empty area opens the empty menu", () => {
     const row = document.querySelectorAll("#panel-left .list .row")[1];
     const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 30, clientY: 40 });
     act(() => void row.dispatchEvent(event));
