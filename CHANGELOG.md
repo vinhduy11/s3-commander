@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [1.0.1]
+
+### Fixed
+- Version bumped to 1.0.1 so the release workflow runs again and publishes the GitHub Release (v1.0.0 was left as a draft).
+
 ### Changed
 - README rewritten as a landing page (centered header, features, security, keyboard, build, releases), modeled on the gobi README.
 - README screenshots under `docs/assets/` (taken from the interactive UI demo).
